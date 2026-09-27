@@ -14,23 +14,23 @@
   --primary: #131a9f;
   --primary-soft: #383db6;
   --primary-light: #3940b3;
-  --primary-bg: #f0f0f8;
+  --primary-bg: #fff;
 
   /* Amarelos do Beamer */
   --accent: #ffe000;
   --accent-dark: #ffda00;
-  --accent-soft: #fff8dc;
+  --accent-soft: #fff;
 
   /* Mapeamento antigo -> novo */
   --leaf: #3940b3;
-  --leaf-soft: #eeeef8;
+  --leaf-soft: #fff;
   --grain: #b8860b;
-  --grain-soft: #fff8dc;
+  --grain-soft: #fff;
   --grain-ink: #8b6914;
   --soil: #8b4513;
-  --soil-soft: #faebd7;
+  --soil-soft: #fff;
   --sky: #131a9f;
-  --sky-soft: #eeeef8;
+  --sky-soft: #fff;
 
   --code-bg: #1a1a2e;
   --code-ink: #e8e6e3;
@@ -368,8 +368,8 @@ table.tbl { border-collapse: collapse; font-size: 0.85rem; width: 100%; font-var
 .q-opts { display: grid; gap: 5px; }
 .q-opts button { text-align: left; font: inherit; font-size: 0.95rem; background: var(--bg); color: var(--ink); border: 1px solid var(--rule); border-radius: 0 0 6px 0; padding: 6px 10px; cursor: pointer; }
 .q-opts button:hover:not(:disabled) { border-color: #131a9f; }
-.q-opts button.right { border-color: var(--ok); background: #f0fff0; }
-.q-opts button.wrong { border-color: var(--bad); background: #fff0f0; }
+.q-opts button.right { border-color: var(--ok); background: #fff; }
+.q-opts button.wrong { border-color: var(--bad); background: #fff; }
 .q-opts button:disabled { cursor: default; }
 .q-fb { font-size: 0.92rem; color: var(--ink-soft); }
 .q-fb b { color: var(--ink); }
