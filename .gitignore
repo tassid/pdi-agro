@@ -1,0 +1,5 @@
+node_modules
+dist
+dist-single
+pixel-no-campo.html
+.DS_Store
