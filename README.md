@@ -20,6 +20,17 @@ A página inicial também lista leituras da casa: trabalhos da UTFPR (RIUT e Rev
 
 Cada aula traz roteiro de 60 min, laboratórios que rodam no navegador (com imagens sintéticas ou foto do aluno), código Python para o Colab, quiz, desafios e leitura da bibliografia da disciplina.
 
+## Notebooks (Google Colab)
+
+| Aula | Tema | Abrir no Colab |
+|------|------|----------------|
+| 1 | Imagem como matriz, espaços de cor, GSD | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula1_Imagem_como_Matriz.ipynb) |
+| 2 | Transformações, filtros, morfologia | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula2_Transformacoes_Filtros_Morfologia.ipynb) |
+| 3 | Segmentação, rotulação, descritores | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula3_Segmentacao_Rotulacao_Descritores.ipynb) |
+| 4 | Índices espectrais, zonas de manejo | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula4_Indices_Espectrais_Zonas.ipynb) |
+| 5 | Classificação, validação por grupo | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula5_Classificacao_Validacao.ipynb) |
+| 6 | CNN, transfer learning, YOLO | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula6_Redes_Neurais_CNN.ipynb) |
+
 ## Rodando localmente
 
 ```bash
