@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Presentation } from 'lucide-react'
 import { Quiz, type Q } from './ui'
+import { SlideDeck } from './slides'
 
 export type Trilha = 'grad' | 'mest'
 
@@ -63,6 +64,7 @@ export function Roteiro({ r }: { r: Aula['roteiro'] }) {
 }
 
 export function LessonPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?: Aula }) {
+  const [showSlides, setShowSlides] = useState(false)
   const secs: { id: string; titulo: string; min?: number }[] = [
     ...aula.secoes,
     { id: 'quiz', titulo: 'Quiz relâmpago', min: undefined },
@@ -93,9 +95,13 @@ export function LessonPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next
   }
   return (
     <main>
+      {showSlides && <SlideDeck aula={aula} onClose={() => setShowSlides(false)} />}
       <header className="wrap lesson-head">
-        <div className="eyebrow">
-          {t.curto} · Aula {aula.n} de 6 · {t.disc}
+        <div className="eyebrow" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <span>{t.curto} · Aula {aula.n} de 6 · {t.disc}</span>
+          <button className="btn-slides" onClick={() => setShowSlides(true)}>
+            <Presentation size={16} /> Modo slides
+          </button>
         </div>
         <h1>{aula.titulo}</h1>
         <p className="bigidea">{aula.ideia}</p>

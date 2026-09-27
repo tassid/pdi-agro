@@ -393,6 +393,34 @@ export function Legend({ items }: { items: { name: string; color: string }[] }) 
 
 export const rgbStr = (c: readonly number[]) => `rgb(${c.map((v) => Math.round(v)).join(',')})`
 
+/* ---------- slide estilo Beamer ---------- */
+
+export function Slide({ title, children, page, total }: { title: string; children: React.ReactNode; page?: number; total?: number }) {
+  return (
+    <div className="slide">
+      <div className="slide-stripe" />
+      <header className="slide-header">{title}</header>
+      <div className="slide-content">{children}</div>
+      <footer className="slide-footer">
+        {page && total && <span>{page} / {total}</span>}
+      </footer>
+    </div>
+  )
+}
+
+export function Theorem({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <section className="theorem">
+      {title && <h2>{title}</h2>}
+      <div className="theorem-body">{children}</div>
+    </section>
+  )
+}
+
+export function Formula({ children }: { children: React.ReactNode }) {
+  return <div className="slide-formula">{children}</div>
+}
+
 /* ---------- caso real (artigo, boletim ou TCC) ---------- */
 
 export function Caso(p: {
