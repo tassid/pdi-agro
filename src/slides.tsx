@@ -117,7 +117,6 @@ function buildSlides(aula: Aula): SlideData[] {
 export function SlideDeck({ aula, onClose }: { aula: Aula; onClose: () => void }) {
   const slides = buildSlides(aula)
   const [current, setCurrent] = useState(0)
-  const [fullscreen, setFullscreen] = useState(false)
 
   const prev = () => setCurrent((c) => Math.max(0, c - 1))
   const next = () => setCurrent((c) => Math.min(slides.length - 1, c + 1))
@@ -137,10 +136,8 @@ export function SlideDeck({ aula, onClose }: { aula: Aula; onClose: () => void }
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen()
-      setFullscreen(true)
     } else {
       document.exitFullscreen()
-      setFullscreen(false)
     }
   }
 
