@@ -1,38 +1,38 @@
 /* Pixel no Campo — caderno de campo quadriculado: cada quadradinho do fundo é um pixel. */
 
 :root {
-  --bg: #0d0d0d;
-  --grid: rgba(255, 255, 255, 0.04);
-  --surface: #181818;
-  --surface-2: #242424;
-  --ink: #e8e8e8;
-  --ink-soft: #a0a0a0;
-  --ink-faint: #707070;
-  --rule: #333;
-  --leaf: #6fcf6f;
-  --leaf-soft: #1a2e1a;
-  --grain: #e2bb52;
+  --bg: #1a1a2e;
+  --grid: transparent;
+  --surface: #232340;
+  --surface-2: #2d2d4a;
+  --ink: #e8e6e3;
+  --ink-soft: #b8b6b3;
+  --ink-faint: #888683;
+  --rule: #3d3d5c;
+  --leaf: #7eb8da;
+  --leaf-soft: #1e2a35;
+  --grain: #d4a24c;
   --grain-soft: #2a2518;
-  --grain-ink: #e2bb52;
-  --soil: #e58a66;
+  --grain-ink: #d4a24c;
+  --soil: #cf7a5a;
   --soil-soft: #2e1a14;
-  --sky: #7fbfdf;
-  --sky-soft: #1a2830;
-  --code-bg: #0a0a0a;
-  --code-ink: #d0d0d0;
-  --ok: #6fcf6f;
-  --bad: #f08a80;
-  --shadow: 0 1px 0 rgba(0, 0, 0, 0.4), 0 10px 26px -18px rgba(0, 0, 0, 0.9);
+  --sky: #7eb8da;
+  --sky-soft: #1e2a35;
+  --code-bg: #12121f;
+  --code-ink: #d0cec8;
+  --ok: #6fba6f;
+  --bad: #d97070;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 
-  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
-  --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
-  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --step--1: 0.84rem;
-  --step-0: 1.05rem;
-  --step-1: 1.28rem;
+  --f-display: "STIX Two Text", "Times New Roman", Georgia, serif;
+  --f-body: "STIX Two Text", "Times New Roman", Georgia, serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Courier New", monospace;
+  --step--1: 0.88rem;
+  --step-0: 1.08rem;
+  --step-1: 1.32rem;
   --step-2: 1.62rem;
-  --step-3: 2.15rem;
-  --step-4: clamp(2.3rem, 5vw, 3.6rem);
+  --step-3: 2rem;
+  --step-4: clamp(2.2rem, 4.5vw, 3.2rem);
   color-scheme: dark;
 }
 
@@ -94,10 +94,6 @@ html { -webkit-text-size-adjust: 100%; scroll-padding-top: 76px; }
 body {
   margin: 0;
   background-color: var(--bg);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 16px 16px;
   color: var(--ink);
   font-family: var(--f-body);
   font-size: var(--step-0);
