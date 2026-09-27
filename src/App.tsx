@@ -329,6 +329,7 @@ export default function App() {
   }, [i])
   return (
     <>
+      <div className="top-stripe" />
       <header className="topbar">
         <div className="wrap">
           <a className="brand" href="#inicio">
