@@ -1,104 +1,147 @@
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
-import os
 
 # Pedir o caminho da imagem
-image_path = input("Digite o caminho da imagem: ")
-img = cv.imread(image_path)
+caminho = input("Digite o caminho da imagem: ")
+img = cv.imread(caminho)
 
 if img is None:
-    print("Erro ao carregar a imagem. Verifique o caminho e tente novamente.")
+    print("Erro ao carregar a imagem")
     exit()
-
-# Converter BGR para RGB para exibição correta
-img_rgb = cv.cvtColor(img, cv.COLOR_BGR2RGB)
 
 # Menu de espaço de cor
 print("\nEscolha o espaço de cor:")
-print("1 - HSV (Hue, Saturation, Value)")
-print("2 - RGB (Red, Green, Blue)")
-print("3 - LAB (Luminance, A, B)")
-print("4 - Grayscale (Escala de cinza)")
-color_choice = input("Digite sua escolha (1/2/3/4): ").strip()
+print("1 - HSV")
+print("2 - RGB")
+print("3 - LAB")
+print("4 - Grayscale")
+escolha_cor = input("Digite a opcao: ")
 
 # Menu de operações
-print("\nEscolha uma opção:")
-print("1 - Exibir os canais do espaço de cor")
-print("2 - Gerar histogramas dos canais")
-print("3 - Fazer ambas as opções")
-operation_choice = input("Digite sua escolha (1/2/3): ").strip()
+print("\nO que deseja fazer?")
+print("1 - Ver os canais")
+print("2 - Ver histogramas")
+print("3 - Ver tudo")
+escolha_op = input("Digite a opcao: ")
 
-print("\nDeseja salvar as imagens geradas? (s/n)")
-save_option = input().lower() == 's'
+salvar = input("\nSalvar as imagens? (s/n): ").lower() == 's'
 
-# Dicionário para armazenar conversões e nomes de canais
-color_spaces = {
-    '1': {'name': 'HSV', 'func': lambda x: cv.cvtColor(x, cv.COLOR_BGR2HSV), 'channels': ['Hue', 'Saturation', 'Value'], 'colors': ['red', 'green', 'blue']},
-    '2': {'name': 'RGB', 'func': lambda x: cv.cvtColor(x, cv.COLOR_BGR2RGB), 'channels': ['Red', 'Green', 'Blue'], 'colors': ['red', 'green', 'blue']},
-    '3': {'name': 'LAB', 'func': lambda x: cv.cvtColor(x, cv.COLOR_BGR2LAB), 'channels': ['Luminance', 'A', 'B'], 'colors': ['gray', 'purple', 'orange']},
-    '4': {'name': 'Grayscale', 'func': lambda x: cv.cvtColor(x, cv.COLOR_BGR2GRAY), 'channels': ['Intensity'], 'colors': ['gray']}
-}
+# Converter para RGB para mostrar a original
+img_rgb = cv.cvtColor(img, cv.COLOR_BGR2RGB)
 
-if color_choice not in color_spaces:
-    print("Opção inválida!")
-    exit()
+# Converter para o espaço de cor escolhido
+if escolha_cor == '1':
+    img_convertida = cv.cvtColor(img, cv.COLOR_BGR2HSV)
+    nome_espaco = 'HSV'
+    c1, c2, c3 = cv.split(img_convertida)
+    nome_c1, nome_c2, nome_c3 = 'Hue', 'Saturation', 'Value'
 
-space = color_spaces[color_choice]
-converted_img = space['func'](img)
-channels = cv.split(converted_img) if color_choice != '4' else [converted_img]
+elif escolha_cor == '2':
+    img_convertida = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+    nome_espaco = 'RGB'
+    c1, c2, c3 = cv.split(img_convertida)
+    nome_c1, nome_c2, nome_c3 = 'Red', 'Green', 'Blue'
 
-print(f"\n✓ Imagem convertida para {space['name']}")
+elif escolha_cor == '3':
+    img_convertida = cv.cvtColor(img, cv.COLOR_BGR2LAB)
+    nome_espaco = 'LAB'
+    c1, c2, c3 = cv.split(img_convertida)
+    nome_c1, nome_c2, nome_c3 = 'Luminance', 'A', 'B'
+
+elif escolha_cor == '4':
+    img_convertida = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+    nome_espaco = 'Grayscale'
+    c1 = img_convertida
+    nome_c1 = 'Intensity'
+
+print(f"\nImagem convertida para {nome_espaco}")
 
 # Exibir canais
-if operation_choice == '1' or operation_choice == '3':
-    plt.figure(figsize=(15, 5))
-
-    # Mostrar imagem original
-    plt.subplot(1, len(channels) + 1, 1)
-    plt.imshow(img_rgb)
-    plt.title('Original (RGB)')
-    plt.axis('off')
-
-    # Mostrar cada canal
-    for i, (channel, channel_name) in enumerate(zip(channels, space['channels'])):
-        plt.subplot(1, len(channels) + 1, i + 2)
-        if space['name'] == 'Grayscale':
-            plt.imshow(channel, cmap='gray')
-        else:
-            plt.imshow(channel, cmap='gray')
-        plt.title(f'{space["name"]}: {channel_name}')
+if escolha_op == '1' or escolha_op == '3':
+    if escolha_cor == '4':
+        plt.figure(figsize=(10, 4))
+        plt.subplot(121)
+        plt.imshow(img_rgb)
+        plt.title('Original')
         plt.axis('off')
 
-    if save_option:
-        for i, (channel, channel_name) in enumerate(zip(channels, space['channels'])):
-            filename = f"{space['name'].lower()}_{channel_name.lower()}.jpg"
-            cv.imwrite(filename, channel)
-        print(f"✓ Canais do {space['name']} salvos como imagens.")
+        plt.subplot(122)
+        plt.imshow(c1, cmap='gray')
+        plt.title(f'{nome_espaco}: {nome_c1}')
+        plt.axis('off')
 
-    plt.tight_layout()
+        if salvar:
+            cv.imwrite(f'{nome_espaco.lower()}_canal.jpg', c1)
+            print(f"Canais salvos")
+    else:
+        plt.figure(figsize=(15, 4))
+
+        plt.subplot(141)
+        plt.imshow(img_rgb)
+        plt.title('Original')
+        plt.axis('off')
+
+        plt.subplot(142)
+        plt.imshow(c1, cmap='gray')
+        plt.title(f'{nome_c1}')
+        plt.axis('off')
+
+        plt.subplot(143)
+        plt.imshow(c2, cmap='gray')
+        plt.title(f'{nome_c2}')
+        plt.axis('off')
+
+        plt.subplot(144)
+        plt.imshow(c3, cmap='gray')
+        plt.title(f'{nome_c3}')
+        plt.axis('off')
+
+        if salvar:
+            cv.imwrite(f'{nome_espaco.lower()}_canal_1.jpg', c1)
+            cv.imwrite(f'{nome_espaco.lower()}_canal_2.jpg', c2)
+            cv.imwrite(f'{nome_espaco.lower()}_canal_3.jpg', c3)
+            print(f"Canais salvos")
+
     plt.show()
 
-# Gerar histogramas
-if operation_choice == '2' or operation_choice == '3':
-    plt.figure(figsize=(15, 4))
-
-    for i, (channel, channel_name, color) in enumerate(zip(channels, space['channels'], space['colors'])):
-        plt.subplot(1, len(channels), i + 1)
-        plt.hist(channel.ravel(), bins=256, range=[0, 256], color=color, alpha=0.7)
-        plt.title(f'Histograma {space["name"]}: {channel_name}')
+# Histogramas
+if escolha_op == '2' or escolha_op == '3':
+    if escolha_cor == '4':
+        plt.figure(figsize=(6, 4))
+        plt.hist(c1.ravel(), bins=256, color='gray')
+        plt.title(f'Histograma {nome_espaco}')
         plt.xlabel('Pixel Value')
-        plt.ylabel('Frequency')
-        plt.grid(True, alpha=0.3)
+        plt.ylabel('Frequencia')
 
-    if save_option:
-        filename = f"histogramas_{space['name'].lower()}.png"
-        plt.savefig(filename, dpi=150, bbox_inches='tight')
-        print(f"✓ Histogramas salvos como '{filename}'.")
+        if salvar:
+            plt.savefig(f'histograma_{nome_espaco.lower()}.png')
+            print(f"Histograma salvo")
+    else:
+        plt.figure(figsize=(15, 4))
 
-    plt.tight_layout()
+        plt.subplot(131)
+        plt.hist(c1.ravel(), bins=256, color='red', alpha=0.7)
+        plt.title(f'Histograma {nome_c1}')
+        plt.xlabel('Pixel Value')
+        plt.ylabel('Frequencia')
+
+        plt.subplot(132)
+        plt.hist(c2.ravel(), bins=256, color='green', alpha=0.7)
+        plt.title(f'Histograma {nome_c2}')
+        plt.xlabel('Pixel Value')
+        plt.ylabel('Frequencia')
+
+        plt.subplot(133)
+        plt.hist(c3.ravel(), bins=256, color='blue', alpha=0.7)
+        plt.title(f'Histograma {nome_c3}')
+        plt.xlabel('Pixel Value')
+        plt.ylabel('Frequencia')
+
+        if salvar:
+            plt.savefig(f'histograma_{nome_espaco.lower()}.png')
+            print(f"Histogramas salvos")
+
     plt.show()
 
-print("\n✓ Processamento concluído!")
-
-
+print("\nFim do programa")
