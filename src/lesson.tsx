@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Presentation } from 'lucide-react'
 import { Quiz, type Q } from './ui'
 import { SlideDeck } from './slides'
 
-export type Trilha = 'grad' | 'mest'
+export type Trilha = 'grad' | 'mest' | 'yolo'
 
 export type Secao = { id: string; titulo: string; min?: number; body: React.ReactNode }
 
@@ -17,7 +17,8 @@ export type Aula = {
   labs: string[]
   cor: string[] // 4 cores do "swatch" do cartão
   objetivos: string[]
-  roteiro: { t: string; min: number; tipo: 'gancho' | 'conceito' | 'lab' | 'fecho' }[]
+  roteiro: { t: string; min: number; tipo: 'gancho' | 'conceito' | 'lab' | 'fecho' | 'pausa' }[]
+  duracao?: number // minutos (padrão 60)
   secoes: Secao[]
   quiz: Q[]
   desafios: { nivel: string; txt: React.ReactNode }[]
@@ -27,6 +28,12 @@ export type Aula = {
 export const TRILHA = {
   grad: { nome: 'Graduação · Ciência da Computação', curto: 'Graduação', disc: 'OP63I · Processamento de Imagens e Reconhecimento de Padrões' },
   mest: { nome: 'Mestrado · PPGTCA', curto: 'Mestrado', disc: 'Tecnologias Computacionais para o Agronegócio' },
+  yolo: { nome: 'Módulo YOLO · detecção de objetos', curto: 'Módulo YOLO', disc: 'Detecção de objetos aplicada ao agronegócio' },
+}
+
+/** texto "Aula 7 · 1 de 2" ou "Aula 3 de 6", conforme a trilha */
+export function posicao(aula: { n: number; trilha: Trilha }) {
+  return aula.trilha === 'yolo' ? `Aula ${aula.n} · ${aula.n - 6} de 2` : `Aula ${aula.n} de 6`
 }
 
 const TIPO_COR = {
@@ -34,8 +41,9 @@ const TIPO_COR = {
   conceito: 'var(--sky-soft)',
   lab: 'var(--leaf-soft)',
   fecho: 'var(--soil-soft)',
+  pausa: 'repeating-linear-gradient(45deg, #f2f2f2 0 6px, #e4e4e4 6px 12px)',
 }
-const TIPO_NOME = { gancho: 'gancho', conceito: 'conceito', lab: 'mão na massa', fecho: 'fechamento' }
+const TIPO_NOME = { gancho: 'gancho', conceito: 'conceito', lab: 'mão na massa', fecho: 'fechamento', pausa: 'intervalo' }
 
 export function Roteiro({ r }: { r: Aula['roteiro'] }) {
   const total = r.reduce((a, b) => a + b.min, 0)
@@ -52,7 +60,7 @@ export function Roteiro({ r }: { r: Aula['roteiro'] }) {
         <span>
           <b>{total} min</b> no total
         </span>
-        {(Object.keys(TIPO_COR) as (keyof typeof TIPO_COR)[]).map((k) => (
+        {(Object.keys(TIPO_COR) as (keyof typeof TIPO_COR)[]).filter((k) => r.some((s) => s.tipo === k)).map((k) => (
           <span key={k} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <i style={{ width: 10, height: 10, background: TIPO_COR[k], border: '1px solid var(--rule)', borderRadius: 2, display: 'inline-block' }} />
             {TIPO_NOME[k]} ({r.filter((s) => s.tipo === k).reduce((a, b) => a + b.min, 0)}′)
@@ -98,7 +106,7 @@ export function LessonPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next
       {showSlides && <SlideDeck aula={aula} onClose={() => setShowSlides(false)} />}
       <header className="wrap lesson-head">
         <div className="eyebrow" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <span>{t.curto} · Aula {aula.n} de 6 · {t.disc}</span>
+          <span>{t.curto} · {posicao(aula)} · {t.disc}</span>
           <button className="btn-slides" onClick={() => setShowSlides(true)}>
             <Presentation size={16} /> Modo slides
           </button>

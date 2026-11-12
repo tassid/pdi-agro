@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, X, Maximize2 } from 'lucide-react'
 import type { Aula } from './lesson'
-import { TRILHA } from './lesson'
+import { TRILHA, posicao } from './lesson'
 
 type SlideData = {
   title: string
@@ -17,7 +17,7 @@ function buildSlides(aula: Aula): SlideData[] {
     title: aula.titulo,
     content: (
       <div className="slide-title-content">
-        <p className="slide-eyebrow">{t.curto} · Aula {aula.n} de 6</p>
+        <p className="slide-eyebrow">{t.curto} · {posicao(aula)}</p>
         <p className="slide-bigidea">{aula.ideia}</p>
         <div className="slide-chips">
           {aula.ementa.map((e) => (

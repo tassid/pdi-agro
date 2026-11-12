@@ -9,8 +9,10 @@ import { aula3 } from './aulas/Aula3'
 import { aula4 } from './aulas/Aula4'
 import { aula5 } from './aulas/Aula5'
 import { aula6 } from './aulas/Aula6'
+import { aula7 } from './aulas/Aula7'
+import { aula8 } from './aulas/Aula8'
 
-const AULAS: Aula[] = [aula1, aula2, aula3, aula4, aula5, aula6]
+const AULAS: Aula[] = [aula1, aula2, aula3, aula4, aula5, aula6, aula7, aula8]
 
 const CASOS = [
   { a: 'aula1', t: 'Tomates separados pela cor', ref: 'Noguti Júnior, Santos e Florian · Revista FT, 2023', o: 'A tabela HSV do artigo numa esteira simulada, webcam HD × Full HD e o erro de unidade do H no OpenCV' },
@@ -19,6 +21,8 @@ const CASOS = [
   { a: 'aula4', t: 'NDVI em vinhedo e macieira', ref: 'Hoff et al. · Embrapa Uva e Vinho, 2011', o: 'ALOS a 10 m e 2,5 m, NDVI por parcela e o pixel misturado da entrelinha' },
   { a: 'aula4', t: 'Falhas e duplas na linha de soja', ref: 'Souza et al. · Energia na Agricultura, 2022', o: 'GSD do Phantom 3 Pro, sobreposição das plantas em V4 e a classificação de Kurachi' },
   { a: 'aula5', t: 'Braquiária na entrelinha dos citros', ref: 'Carvalho e Carvalho · Embrapa Mandioca e Fruticultura, 2022', o: 'Segmentação treinável com Random Forest, Kappa e a validação por pixel' },
+  { a: 'aula7', t: 'Gado contado por drone no Piauí', ref: 'Leal et al. · ENIAC, 2024', o: 'YOLOv9 em 120 imagens de vídeo de drone: rotulagem, aumento de dados, mAP e as perguntas sobre vazamento entre treino e teste' },
+  { a: 'aula8', t: 'Espigas de trigo em sete países', ref: 'David et al. · Plant Phenomics, 2020 (GWHD)', o: 'Treinar na Europa e testar na Austrália, Japão e China: mudança de domínio medida com mAP, reproduzida com as fazendas A e B' },
   { a: 'aula5', t: 'Linha de base com Dummy', ref: 'Souza et al. · Energia na Agricultura, 2022', o: 'Random Forest a 65,5% contra 49,6% do chute' },
 ]
 
@@ -127,11 +131,11 @@ function Swatch({ c }: { c: string[] }) {
 }
 
 function Home() {
-  const grad = AULAS.filter((a) => a.trilha === 'grad'), mest = AULAS.filter((a) => a.trilha === 'mest')
+  const grad = AULAS.filter((a) => a.trilha === 'grad'), mest = AULAS.filter((a) => a.trilha === 'mest'), yolo = AULAS.filter((a) => a.trilha === 'yolo')
   const Card = ({ a }: { a: Aula }) => (
     <a className="acard" href={`#${a.id}`}>
       <div className="acard-top">
-        <span className="acard-num">Aula {a.n} · 60 min</span>
+        <span className="acard-num">Aula {a.n} · {a.duracao && a.duracao >= 120 ? `${a.duracao / 60} h` : `${a.duracao ?? 60} min`}</span>
         <Swatch c={a.cor} />
       </div>
       <h3>{a.titulo}</h3>
@@ -149,7 +153,7 @@ function Home() {
     <main>
       <section className="wrap hero">
         <div>
-          <div className="eyebrow">UTFPR · Campus Medianeira · 6 aulas interativas</div>
+          <div className="eyebrow">UTFPR · Campus Medianeira · 8 aulas interativas</div>
           <h1>
             Processamento digital de imagens <em>aplicado ao agronegócio</em>
           </h1>
@@ -157,8 +161,9 @@ function Home() {
           <div className="hero-meta">
             <span className="chip">3 aulas · graduação</span>
             <span className="chip">3 aulas · mestrado</span>
-            <span className="chip">25 laboratórios</span>
-            <span className="chip">7 casos reais</span>
+            <span className="chip">2 aulas de 3 h · YOLO</span>
+            <span className="chip">34 laboratórios</span>
+            <span className="chip">9 casos reais</span>
             <span className="chip">nada para instalar</span>
           </div>
         </div>
@@ -173,7 +178,7 @@ function Home() {
           </div>
           <div>
             <h3>Para quem dá a aula</h3>
-            <p>A barra colorida no topo de cada aula é o roteiro de 60 minutos. Os blocos azuis "Nota pra quem dá a aula" trazem dinâmicas e perguntas para fazer à turma.</p>
+            <p>A barra colorida no topo de cada aula é o roteiro (60 minutos, ou 3 horas com intervalo no módulo YOLO). Os blocos azuis "Nota pra quem dá a aula" trazem dinâmicas e perguntas para fazer à turma.</p>
           </div>
           <div>
             <h3>Para ir além</h3>
@@ -212,6 +217,21 @@ function Home() {
         </div>
       </section>
 
+
+      <section className="wrap track" id="yolo">
+        <div className="track-head">
+          <div>
+            <div className="eyebrow">{TRILHA.yolo.disc}</div>
+            <h2>Módulo YOLO · 2 aulas de 3 horas</h2>
+          </div>
+          <p>Detecção de objetos de ponta a ponta: rotular no formato YOLO, IoU, a grade e as cabeças do modelo, NMS, treino com transfer learning, mAP, mudança de domínio e contagem em vídeo com rastreamento. Tudo com bois vistos de drone e o yolo26n no Colab.</p>
+        </div>
+        <div className="cards">
+          {yolo.map((a) => (
+            <Card a={a} key={a.id} />
+          ))}
+        </div>
+      </section>
 
       <section className="wrap track" id="casos">
         <div className="track-head">
@@ -343,7 +363,7 @@ export default function App() {
           <nav className="topnav" aria-label="Aulas">
             {AULAS.map((a, k) => (
               <span key={a.id} style={{ display: 'contents' }}>
-                {k === 3 && <span className="sep" aria-hidden="true" />}
+                {(k === 3 || k === 6) && <span className="sep" aria-hidden="true" />}
                 <a href={`#${a.id}`} aria-current={a.id === h ? 'page' : undefined} title={a.titulo}>
                   Aula {a.n}
                 </a>
