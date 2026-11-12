@@ -7,6 +7,8 @@ import { memo } from '../samples'
 import { COR, drawBox, Stat, Chave, PRChart } from './detui'
 import { pasto } from './Aula7'
 import type { Aula } from '../lesson'
+import { ParadaLab, BuscaLab } from './labsNeuro'
+import { Figura, FigCVAT, FigTelaCVAT, FigLacoTreino, FigTarefasYolo } from './figuras'
 
 const NB8 = 'https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula8_YOLO_Treino_Avaliacao.ipynb'
 const FAZ_A: Fazenda = 'A · nelore em pasto verde'
@@ -224,7 +226,7 @@ function PequenoDemais() {
   )
 }
 
-/* ============ Lab 8.3 · medindo um detector ============ */
+/* ============ Lab 8.5 · medindo um detector ============ */
 
 const N_TESTE = 12
 function conjunto(faz: Fazenda) {
@@ -264,9 +266,9 @@ function Medidor() {
   )
   return (
     <Lab
-      n="8.3"
+      n="8.5"
       title="Medindo um detector"
-      desc="Doze fotos de teste com a verdade de campo. As detecções imitam um modelo treinado só na fazenda A (simuladas, como no Lab 7.5); todas as métricas são calculadas aqui, do mesmo jeito que o model.val() calcula. Mova o limiar de confiança e troque a fazenda de teste."
+      desc="Doze fotos de teste com a verdade de campo. As detecções imitam um modelo treinado só na fazenda A (simuladas, como no Lab 7.6); todas as métricas são calculadas aqui, do mesmo jeito que o model.val() calcula. Mova o limiar de confiança e troque a fazenda de teste."
     >
       <div className="controls">
         <Seg value={faz} options={[FAZ_A, FAZ_B] as const} onChange={setFaz} label="conjunto de teste" />
@@ -327,7 +329,7 @@ function Medidor() {
   )
 }
 
-/* ============ Lab 8.4 · contagem no brete com rastreamento ============ */
+/* ============ Lab 8.6 · contagem no brete com rastreamento ============ */
 
 const BW = 360, BH = 150, LINHA = 180
 type Boi = { t0: number; v: number; y: number; a: number; b: number; cor: string }
@@ -441,7 +443,7 @@ function Brete() {
   const final = qs[qs.length - 1]
   return (
     <Lab
-      n="8.4"
+      n="8.6"
       title="Contar bois passando no brete"
       desc="Câmera de cima, no corredor do curral. O detector perde alguns quadros (sujeira, poeira, a trave da porteira). O rastreador liga as caixas de um quadro ao outro e dá um número a cada animal; a contagem é feita quando a trilha cruza a linha amarela. O rastreador e a contagem rodam de verdade aqui."
     >
@@ -486,6 +488,46 @@ function Brete() {
 }
 
 /* ============ conteúdo ============ */
+
+const CODE_CVAT = `# o CVAT exporta tudo como "train"; aqui separamos por voo (o nome da tarefa vai no nome do arquivo)
+import zipfile, shutil, glob, os
+zipfile.ZipFile("cvat_export.zip").extractall("cvat")
+VAL, TESTE = {"voo07", "voo08"}, {"voo09", "voo10"}
+for img in glob.glob("cvat/images/train/*.jpg"):
+    voo = os.path.basename(img).split("_")[0]
+    destino = "val" if voo in VAL else "test" if voo in TESTE else "train"
+    for pasta, ext in [("images", ".jpg"), ("labels", ".txt")]:
+        orig = img.replace("images", pasta).replace(".jpg", ext)
+        if os.path.exists(orig):
+            os.makedirs(f"pasto/{pasta}/{destino}", exist_ok=True)
+            shutil.copy(orig, f"pasto/{pasta}/{destino}/")
+print(open("cvat/data.yaml").read())   # confira os nomes das classes antes de escrever o seu data.yaml`
+
+const CODE_BUSCA = `# grade pequena: 2 tamanhos de imagem x 2 taxas de aprendizado, poucas épocas cada
+import itertools
+resultados = []
+for imgsz, lr0 in itertools.product([480, 640], [0.01, 0.002]):
+    m = YOLO("yolo26n.pt")
+    m.train(data="pasto/data.yaml", epochs=20, imgsz=imgsz, lr0=lr0, optimizer="SGD",
+            patience=5, name=f"grade_{imgsz}_{lr0}", plots=False, verbose=False)
+    v = YOLO(f"{m.trainer.save_dir}/weights/best.pt").val(data="pasto/data.yaml", split="val")
+    resultados.append((imgsz, lr0, v.box.map))         # mAP50-95 na VALIDAÇÃO
+print(sorted(resultados, key=lambda t: -t[2]))
+
+# ou deixe o ultralytics procurar sozinho (algoritmo genético, muitas rodadas: só com GPU e tempo)
+# YOLO("yolo26n.pt").tune(data="pasto/data.yaml", epochs=10, iterations=30, plots=False)`
+
+const CODE_SEGCLS = `# segmentação: rótulo = classe + polígono normalizado (x1 y1 x2 y2 ... xn yn)
+seg = YOLO("yolo26n-seg.pt")
+seg.train(data="pasto_seg/data.yaml", epochs=40, imgsz=640)
+r = seg.predict("piquete.jpg")[0]
+areas_px = [m.sum().item() for m in r.masks.data]      # área de cada animal, em pixels da máscara
+
+# classificação: sem .txt, uma pasta por classe
+#   recortes/train/bovino/*.jpg   recortes/train/cupinzeiro/*.jpg   recortes/val/...
+cls = YOLO("yolo26n-cls.pt")
+cls.train(data="recortes", epochs=20, imgsz=96)
+print(cls.predict("recorte.jpg")[0].probs.top1)`
 
 const CODE_TREINO = `# Aula 8 · treinar um YOLO no seu banco (no Colab, com GPU)
 from ultralytics import YOLO
@@ -549,10 +591,12 @@ export const aula8: Aula = {
   duracao: 180,
   titulo: 'Treinar, medir e levar pro campo',
   ideia: 'Treinar um YOLO são quatro linhas de código. O trabalho de verdade está antes (o banco e o split) e depois (as métricas certas, o teste em outra fazenda e a contagem no mundo real).',
-  ementa: ['Banco e data.yaml', 'Split por grupo', 'GSD, imgsz e fatias', 'Treino com transfer learning', 'P, R, PR, mAP50, mAP50-95', 'Mudança de domínio', 'Rastreamento e contagem', 'Exportar'],
-  labs: ['O doutor do rótulo', 'Pequeno demais', 'Medindo um detector', 'Contar no brete'],
+  ementa: ['Rotular no CVAT', 'Banco e data.yaml', 'Split por grupo', 'GSD, imgsz e fatias', 'Treino com transfer learning', 'Parada antecipada', 'Grid e random search', 'P, R, PR, mAP50, mAP50-95', 'Mudança de domínio', 'Rastreamento e contagem', 'Exportar'],
+  labs: ['O doutor do rótulo', 'Pequeno demais', 'Parar na hora certa', 'Grade ou sorteio?', 'Medindo um detector', 'Contar no brete'],
   cor: ['#131a9f', '#e0302a', '#ff8a00', '#1fae4b'],
   objetivos: [
+    'Rotular imagens e vídeos no CVAT (projeto, tarefa, retângulo, polígono, track) e exportar no formato Ultralytics YOLO.',
+    'Usar a parada antecipada (patience) e comparar busca em grade e busca aleatória de hiperparâmetros, sem gastar o conjunto de teste.',
     'Montar um banco no formato YOLO (pastas, .txt, data.yaml) e validar os rótulos antes do treino.',
     'Separar treino, validação e teste por voo ou fazenda, e explicar o vazamento de frames vizinhos.',
     'Relacionar GSD, imgsz e tamanho do objeto e escolher entre voar mais baixo, aumentar imgsz ou fatiar.',
@@ -562,15 +606,17 @@ export const aula8: Aula = {
   ],
   roteiro: [
     { t: 'Gancho: o modelo de 95% que falhou', min: 10, tipo: 'gancho' },
-    { t: 'Banco e split + Lab 8.1', min: 20, tipo: 'conceito' },
-    { t: 'Objeto pequeno: Lab 8.2', min: 20, tipo: 'lab' },
-    { t: 'Colab: treinar o yolo26n', min: 30, tipo: 'lab' },
+    { t: 'Rotular no CVAT', min: 20, tipo: 'lab' },
+    { t: 'Banco e split: Lab 8.1', min: 15, tipo: 'conceito' },
+    { t: 'Objeto pequeno: Lab 8.2', min: 15, tipo: 'lab' },
+    { t: 'Colab: treinar o yolo26n', min: 20, tipo: 'lab' },
     { t: 'Intervalo (o treino roda)', min: 15, tipo: 'pausa' },
-    { t: 'Métricas: Lab 8.3', min: 30, tipo: 'conceito' },
+    { t: 'Early stopping e busca: Labs 8.3 e 8.4', min: 25, tipo: 'conceito' },
+    { t: 'Métricas: Lab 8.5', min: 20, tipo: 'conceito' },
     { t: 'Caso real: espigas de trigo pelo mundo', min: 10, tipo: 'conceito' },
-    { t: 'Rastrear e contar: Lab 8.4', min: 25, tipo: 'lab' },
-    { t: 'Colab: avaliar na fazenda B e exportar', min: 10, tipo: 'lab' },
-    { t: 'Fechamento + quiz', min: 10, tipo: 'fecho' },
+    { t: 'Rastrear e contar: Lab 8.6', min: 15, tipo: 'lab' },
+    { t: 'Colab: fazenda B, segmentar, exportar', min: 10, tipo: 'lab' },
+    { t: 'Fechamento + quiz', min: 5, tipo: 'fecho' },
   ],
   secoes: [
     {
@@ -597,9 +643,112 @@ export const aula8: Aula = {
       ),
     },
     {
+      id: 'a8-cvat',
+      titulo: 'Rotular no CVAT',
+      min: 20,
+      body: (
+        <div className="prose">
+          <p>
+            Todo detector começa com alguém desenhando caixas. O <b>CVAT</b> (Computer Vision Annotation Tool) é gratuito, de código aberto e roda no navegador: dá para usar a versão hospedada em{' '}
+            <a href="https://app.cvat.ai" target="_blank" rel="noreferrer">app.cvat.ai</a> ou instalar no servidor do laboratório com Docker, o que importa quando as fotos não podem sair da fazenda. Ele rotula
+            caixas, polígonos, pontos e caixas giradas, em fotos e em vídeo, e exporta direto no formato do ultralytics.
+          </p>
+          <Figura n="8.1" legenda="O caminho no CVAT: do projeto com os rótulos até o .zip pronto para treinar.">
+            <FigCVAT />
+          </Figura>
+          <h3>Passo a passo</h3>
+          <ol>
+            <li>
+              <b>Crie um projeto</b> e defina os rótulos uma vez só, na ordem que vai virar o índice da classe: <code>bovino</code> (0), <code>cupinzeiro</code> (1) se quiser ensinar o modelo a separar os dois.
+              Escolha o tipo de forma: retângulo para detecção, polígono para segmentação.
+            </li>
+            <li>
+              <b>Crie uma tarefa por voo</b> (ou por dia, por fazenda) dentro do projeto e suba as fotos ou o vídeo. Uma tarefa por voo facilita o split por grupo depois, e permite dividir o trabalho entre rotuladores.
+            </li>
+            <li>
+              <b>Anote.</b> Escolha o retângulo, clique nos dois cantos opostos do animal, confira o rótulo. Para o próximo, <kbd>N</kbd> desenha de novo com a mesma forma. <kbd>F</kbd> e <kbd>D</kbd> passam para a
+              próxima e para a anterior imagem. Salve com <kbd>Ctrl+S</kbd> com frequência.
+            </li>
+            <li>
+              <b>Em vídeo, use track.</b> Desenhe a caixa no primeiro quadro como <i>track</i>, avance uns 10 quadros, ajuste a caixa; o CVAT interpola as posições entre os quadros-chave. Rotular um vídeo de brete fica
+              10 vezes mais rápido.
+            </li>
+            <li>
+              <b>Revise.</b> Outra pessoa abre a tarefa no modo de revisão e marca problemas. É aqui que aparecem as caixas frouxas e os animais esquecidos que derrubam o mAP50-95.
+            </li>
+            <li>
+              <b>Exporte</b> em <i>Exportar conjunto de dados</i>, escolhendo o formato <b>Ultralytics YOLO Detection</b> (há também Segmentation, Pose e Oriented Bounding Boxes). Sai um .zip com o{' '}
+              <code>data.yaml</code>, a pasta <code>images/</code> e a pasta <code>labels/</code>, um .txt por imagem.
+            </li>
+          </ol>
+          <h3>Uma ferramenta, três tarefas</h3>
+          <p>O mesmo projeto do CVAT serve para classificar, segmentar e detectar. O que muda é a forma que você desenha e o formato que escolhe na exportação:</p>
+          <div className="tbl-wrap">
+            <table className="tbl wrap1">
+              <thead>
+                <tr>
+                  <th>tarefa</th>
+                  <th>no CVAT, desenhe</th>
+                  <th>exporte como</th>
+                  <th>vira</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>classificação</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>uma <b>tag</b> na imagem inteira (sadia, ferrugem)</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>Ultralytics YOLO Classification</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>uma pasta por classe, sem .txt</td>
+                </tr>
+                <tr>
+                  <td>detecção</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}><b>retângulos</b> (ou tracks, em vídeo)</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>Ultralytics YOLO Detection</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>
+                    <code>classe cx cy w h</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>segmentação</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}><b>polígonos</b> ou máscaras com pincel</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>Ultralytics YOLO Segmentation</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>
+                    <code>classe x1 y1 ... xn yn</code>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Rotule pensando na tarefa mais rica que você pode precisar: de um polígono dá para tirar a caixa (é o menor retângulo que o contém) e a classe da foto; do retângulo não dá para voltar ao polígono. Por outro
+            lado, um polígono leva umas cinco vezes mais tempo para desenhar. No CVAT, as ferramentas de IA (como o SAM) sugerem o contorno com um clique e você só corrige.
+          </p>
+          <Figura n="8.2" legenda="Esquema da tela de anotação: ferramentas à esquerda, imagem no centro, lista de objetos e atalhos à direita.">
+            <FigTelaCVAT />
+          </Figura>
+          <Callout kind="pegadinha" title="O export não faz o seu split">
+            <p>
+              O CVAT coloca tudo no subconjunto que você definiu (por padrão, <code>train</code>). Separar treino, validação e teste é com você, por voo ou por fazenda, antes de treinar. Abra o <code>data.yaml</code>{' '}
+              exportado, confira os nomes das classes e aponte <code>val</code> para os voos que separou. Depois, passe tudo pelo doutor do rótulo do Lab 8.1.
+            </p>
+          </Callout>
+          <Code code={CODE_CVAT} title="Python · do .zip do CVAT para um banco com split por voo" />
+          <Callout kind="prof" title="Nota pra quem dá a aula · 15 min">
+            <p>
+              Antes da aula, crie um projeto no app.cvat.ai com uma tarefa de 20 fotos (podem ser os piquetes do notebook) e convide a turma. Em duplas, cada um rotula 5 fotos; depois um revisa o do outro. Exportem e
+              abram o .zip juntos. Se não houver internet boa, use o Lab 7.3, que faz o mesmo papel em escala menor.
+            </p>
+          </Callout>
+          <p className="note">
+            Alternativas: Label Studio (também aberto), Roboflow (na nuvem, com cota gratuita e exportação direta para YOLO) e a própria plataforma do ultralytics. O formato do .txt é o mesmo em todas.
+          </p>
+        </div>
+      ),
+    },
+    {
       id: 'a8-banco',
       titulo: 'O banco vem antes do modelo',
-      min: 20,
+      min: 15,
       body: (
         <div className="prose">
           <p>
@@ -632,7 +781,7 @@ export const aula8: Aula = {
     {
       id: 'a8-pequeno',
       titulo: 'Objeto pequeno, foto grande',
-      min: 20,
+      min: 15,
       body: (
         <div className="prose">
           <p>
@@ -652,7 +801,7 @@ export const aula8: Aula = {
     {
       id: 'a8-treino',
       titulo: 'Treinar: quatro linhas e muita paciência',
-      min: 30,
+      min: 20,
       body: (
         <div className="prose">
           <p>
@@ -689,9 +838,59 @@ export const aula8: Aula = {
       ),
     },
     {
+      id: 'a8-hiper',
+      titulo: 'Até quando treinar e com quais hiperparâmetros',
+      min: 25,
+      body: (
+        <div className="prose">
+          <p>
+            Na volta do intervalo, abra o <code>results.png</code> do seu treino. Vão aparecer duas perguntas que todo projeto de ML enfrenta: <b>até que época treinar</b> e <b>com quais hiperparâmetros</b> (taxa de
+            aprendizado, tamanho da imagem, tamanho do modelo, aumento de dados). Os pesos a rede aprende sozinha; os hiperparâmetros somos nós que escolhemos, olhando a validação.
+          </p>
+          <Figura n="8.3" legenda="O laço de treino: a cada época, mede na validação, guarda o melhor e decide se para. A busca de hiperparâmetros repete o laço inteiro.">
+            <FigLacoTreino />
+          </Figura>
+          <h3>Parada antecipada (early stopping)</h3>
+          <p>
+            Com épocas demais, a rede começa a decorar os exemplos de treino, inclusive o ruído: a perda de treino continua caindo, mas a de validação para de cair e sobe. A <b>parada antecipada</b> acompanha a
+            validação e para o treino quando ela fica um número de épocas sem melhorar, a <b>paciência</b>. Os pesos que valem são os da melhor época, não os da última. Na prática, é a forma de regularização mais usada
+            em redes profundas, porque é de graça: só exige separar a validação.
+          </p>
+          <ParadaLab />
+          <p>
+            No ultralytics, isso é o argumento <code>patience</code> (padrão 100 épocas) e o arquivo <code>best.pt</code>, que é sempre o da melhor época de validação; o <code>last.pt</code> é o da última.
+          </p>
+          <h3>Busca em grade (grid search) e busca aleatória (random search)</h3>
+          <p>
+            Para escolher hiperparâmetros, a <b>busca em grade</b> define alguns valores para cada um e treina todas as combinações. É simples e fácil de explicar no artigo, mas cresce como produto: 4 hiperparâmetros com
+            5 valores cada são 625 treinos. A <b>busca aleatória</b> sorteia combinações dentro das mesmas faixas, com o orçamento que você tiver. Como em geral só um ou dois hiperparâmetros importam muito, ela
+            experimenta mais valores diferentes deles e costuma achar algo tão bom quanto a grade com bem menos treinos (Bergstra e Bengio, 2012).
+          </p>
+          <BuscaLab />
+          <p>
+            Dá para juntar as duas ideias: treine todas as configurações por poucas épocas, descarte a metade pior, continue as que sobraram e repita (a ideia do <i>successive halving</i> e do Hyperband). Taxa de
+            aprendizado se busca em escala logarítmica (0,001, 0,003, 0,01...), nunca em passos iguais.
+          </p>
+          <Code code={CODE_BUSCA} title="Python · grade pequena com ultralytics e o tuner embutido" />
+          <Callout kind="pegadinha">
+            <p>
+              Toda escolha feita olhando a validação, inclusive a época do best.pt e o conf ideal, “gasta” a validação. Por isso existem três conjuntos: treino para os pesos, validação para as escolhas e teste, tocado uma
+              vez no fim, para o número do artigo.
+            </p>
+          </Callout>
+          <Callout kind="campo">
+            <p>
+              Para um YOLO com algumas centenas de fotos, a ordem de ganho costuma ser: mais fotos e de mais fazendas &gt; rótulos consistentes &gt; imgsz certo para o tamanho do objeto &gt; tamanho do modelo (n, s,
+              m) &gt; o resto dos hiperparâmetros. Não gaste a GPU do Colab numa grade de 50 treinos antes de olhar os rótulos.
+            </p>
+          </Callout>
+        </div>
+      ),
+    },
+    {
       id: 'a8-metricas',
       titulo: 'Precisão, revocação e mAP',
-      min: 30,
+      min: 20,
       body: (
         <div className="prose">
           <p>Com as detecções casadas à verdade pelo IoU (Aula 7), cada caixa vira verdadeiro positivo (VP) ou falso positivo (FP), e cada animal sem caixa vira falso negativo (FN). Daí:</p>
@@ -770,7 +969,7 @@ export const aula8: Aula = {
     {
       id: 'a8-campo',
       titulo: 'Do notebook para o curral',
-      min: 25,
+      min: 15,
       body: (
         <div className="prose">
           <p>
@@ -779,6 +978,15 @@ export const aula8: Aula = {
           </p>
           <Brete />
           <Code code={CODE_CAMPO} title="Python · ultralytics, SAHI, exportação" />
+          <h3>E se a pergunta pedir máscara ou só uma classe?</h3>
+          <p>
+            Tudo o que fizemos vale para as outras tarefas do YOLO (Figura 7.8). Para segmentar, rotule polígonos no CVAT e exporte como <i>Ultralytics YOLO Segmentation</i>; para classificar, separe as fotos em uma
+            pasta por classe. O notebook gera os dois bancos a partir dos mesmos piquetes e treina um <code>yolo26n-seg</code> e um <code>yolo26n-cls</code>.
+          </p>
+          <Figura n="8.4" legenda="O mesmo fluxo serve para segmentar, classificar, pose e caixas giradas: muda o arquivo de pesos e o rótulo.">
+            <FigTarefasYolo />
+          </Figura>
+          <Code code={CODE_SEGCLS} title="Python · segmentar e classificar com o mesmo ultralytics" />
           <Callout kind="campo">
             <p>
               Onde o modelo vai rodar decide a versão: o <code>yolo26n</code> (nano) roda em CPU de celular e em placas como Raspberry Pi; o <code>yolo26m</code> ou maior pede GPU. No brete, latência de alguns quadros
@@ -805,7 +1013,7 @@ export const aula8: Aula = {
     {
       id: 'a8-fecho',
       titulo: 'Pra levar pra casa',
-      min: 10,
+      min: 5,
       body: (
         <div className="prose">
           <ol>
@@ -820,6 +1028,24 @@ export const aula8: Aula = {
     },
   ],
   quiz: [
+    {
+      p: 'No CVAT, você criou uma tarefa por voo e exportou em Ultralytics YOLO Detection. O que ainda falta antes de treinar?',
+      o: ['Nada, o export já separa treino e validação por voo', 'Separar treino, validação e teste por voo e conferir as classes no data.yaml', 'Converter para COCO', 'Redimensionar as fotos para 640'],
+      a: 1,
+      e: 'O export põe tudo num subconjunto só. O split por grupo e a conferência do data.yaml (e dos rótulos desenhados de volta) são seus.',
+    },
+    {
+      p: 'Com patience=50, a validação foi melhor na época 120 e o treino parou na 170. Qual peso você usa?',
+      o: ['last.pt, da época 170', 'best.pt, da época 120', 'A média dos dois', 'Treina de novo até 300'],
+      a: 1,
+      e: 'O best.pt guarda a melhor época de validação. As 50 épocas seguintes só confirmaram que não ia melhorar.',
+    },
+    {
+      p: 'Você tem orçamento para 9 treinos e 3 hiperparâmetros, mas suspeita que só a taxa de aprendizado importa. Qual busca tende a ir melhor?',
+      o: ['Grade 3 × 3 × 1', 'Aleatória com 9 sorteios', 'Grade só nos dois que não importam', 'Tanto faz'],
+      a: 1,
+      e: 'A grade testaria só 3 valores de taxa; a busca aleatória testa 9 valores diferentes dela com o mesmo orçamento.',
+    },
     {
       p: 'Um banco tem 30 vídeos de drone e 3 mil frames. Qual divisão dá a estimativa mais honesta do desempenho em campo?',
       o: ['Sortear 20% dos frames para teste', 'Separar 6 vídeos inteiros para teste', 'Usar os mesmos frames com aumento de dados para teste', 'Testar no conjunto de treino com conf mais alto'],
@@ -839,7 +1065,7 @@ export const aula8: Aula = {
       e: 'Acha bem com IoU 0,5, mas o AP cai quando se exige IoU de 0,75 a 0,95: as caixas não encaixam bem. Pode ser rótulo inconsistente, mas não necessariamente.',
     },
     {
-      p: 'Na fazenda B do Lab 8.3, por que a revocação cai mais que a precisão?',
+      p: 'Na fazenda B do Lab 8.5, por que a revocação cai mais que a precisão?',
       o: ['Porque há menos bois', 'Porque o modelo nunca viu gado escuro e deixa de achar esses animais', 'Porque o IoU muda de definição', 'Porque o NMS está desligado'],
       a: 1,
       e: 'O gado escuro sobre solo exposto é fora do domínio de treino: o modelo dá confiança baixa e esses animais viram falsos negativos. Os cupinzeiros a mais também derrubam um pouco a precisão.',
@@ -871,6 +1097,17 @@ export const aula8: Aula = {
     },
   ],
   leitura: [
+    <>
+      CVAT: <a href="https://docs.cvat.ai/docs/dataset_management/formats/format-yolo-ultralytics/" target="_blank" rel="noreferrer">formato Ultralytics YOLO</a> (detecção, segmentação, pose, OBB e o data.yaml exportado) e o
+      quickstart do projeto à exportação. Tutorial da Roboflow sobre o CVAT, com o fluxo completo.
+    </>,
+    <>
+      Ultralytics: <a href="https://docs.ultralytics.com/tasks/" target="_blank" rel="noreferrer">tarefas</a> (detectar, segmentar, classificar, pose, OBB) e a{' '}
+      <a href="https://docs.ultralytics.com/platform/integrations/cvat" target="_blank" rel="noreferrer">integração com o CVAT</a>.
+    </>,
+    <>Cornell CS4780, notas de <i>Model Selection</i> (grid search, random search e early stopping). Cornell CS6787 (2026), ajuste de hiperparâmetros, com o descarte da metade pior a cada rodada.</>,
+    <>Buffalo, Prof. Srihari, slides sobre early stopping, com curvas de aprendizado e a comparação com a regularização L2. LMU Munique (I2ML), grid search contra random search.</>,
+    <>BERGSTRA, J.; BENGIO, Y. Random search for hyper-parameter optimization. JMLR, 2012.</>,
     <>DAVID, E. et al. Global Wheat Head Detection (GWHD) dataset: a large and diverse dataset of high resolution RGB labelled images to develop and benchmark wheat head detection methods. Plant Phenomics, 2020.</>,
     <>
       Documentação do ultralytics: <a href="https://docs.ultralytics.com/modes/train/" target="_blank" rel="noreferrer">treino</a>, <a href="https://docs.ultralytics.com/guides/yolo-performance-metrics/" target="_blank" rel="noreferrer">métricas</a>,{' '}

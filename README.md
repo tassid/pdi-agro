@@ -16,8 +16,8 @@ Mestrado (PPGTCA):
 
 Módulo YOLO (2 aulas de 3 horas, com intervalo):
 
-7. Onde está e quantos são → classificar × detectar × segmentar, rótulo no formato YOLO, IoU, grade e cabeças (P3/P4/P5), sem âncora, NMS e o YOLO26 sem NMS, inferência com ultralytics. Caso real: gado contado por drone no Piauí (Leal et al., ENIAC 2024)
-8. Treinar, medir e levar pro campo → data.yaml e validação de rótulos, split por voo, GSD × imgsz × fatias (SAHI), treino do yolo26n, P, R, mAP50, mAP50-95, mudança de domínio, rastreamento e contagem no brete, exportação. Caso real: Global Wheat Head Detection (David et al., 2020)
+7. Onde está e quantos são → perceptron (AND, OR e o XOR), MLP e CNN, classificar × segmentar × detectar, U-Net, R-CNN × YOLO, função de perda, as cinco tarefas do YOLO, rótulo no formato YOLO, IoU, grade e cabeças (P3/P4/P5), sem âncora, NMS e o YOLO26 sem NMS, inferência com ultralytics. Caso real: gado contado por drone no Piauí (Leal et al., ENIAC 2024)
+8. Treinar, medir e levar pro campo → rotular no CVAT (classificação, detecção e segmentação), data.yaml e validação de rótulos, parada antecipada, busca em grade e aleatória, split por voo, GSD × imgsz × fatias (SAHI), treino do yolo26n, P, R, mAP50, mAP50-95, mudança de domínio, rastreamento e contagem no brete, exportação. Caso real: Global Wheat Head Detection (David et al., 2020)
 
 Cada aula tem um caso real (artigo, boletim da Embrapa ou TCC da UTFPR Medianeira) reproduzido num laboratório: tomates por cor (Aula 1), contagem de frangos em aviário (Aula 2), severidade em folhas de laranjeira e mapa por IDP (Aula 3), NDVI em vinhedos e falhas na linha de soja com drone (Aula 4), cobertura de braquiária em citros com Random Forest (Aula 5).
 
@@ -35,8 +35,8 @@ Cada aula traz roteiro de 60 min, laboratórios que rodam no navegador (com imag
 | 4 | Índices espectrais, zonas de manejo | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula4_Indices_Espectrais_Zonas.ipynb) |
 | 5 | Classificação, validação por grupo | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula5_Classificacao_Validacao.ipynb) |
 | 6 | CNN, transfer learning, YOLO | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula6_Redes_Neurais_CNN.ipynb) |
-| 7 | YOLO pronto, IoU e NMS à mão, piquete sintético | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula7_YOLO_Deteccao.ipynb) |
-| 8 | Banco por voo, treino do yolo26n, mAP, fazenda B, brete, exportação | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula8_YOLO_Treino_Avaliacao.ipynb) |
+| 7 | Perceptron e MLP, YOLO pronto, IoU e NMS à mão, piquete sintético | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula7_YOLO_Deteccao.ipynb) |
+| 8 | Banco por voo, treino do yolo26n, grade de hiperparâmetros, mAP, fazenda B, segmentação e classificação, brete, exportação | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula8_YOLO_Treino_Avaliacao.ipynb) |
 
 ## Rodando localmente
 
@@ -65,6 +65,7 @@ src/
   ui.tsx         componentes (canvas de imagem, sliders, quiz, código)
   lib/img.ts     operações de PDI (cor, histograma, convolução, morfologia, Otsu, rotulação)
   lib/synth.ts   gerador de imagens sintéticas (talhão, folhas, sementes, bandas multiespectrais)
+  lib/neuro.ts   perceptron, MLP com Adam, parada antecipada e busca de hiperparâmetros
   lib/yolo.ts    caixas, IoU, NMS, curva PR, mAP, rastreador e o gerador de piquetes vistos de drone
   lib/ml.ts      k-NN, mínima distância, Bayes, validação cruzada
   lib/cnn.ts     CNN pequena com retropropagação em TypeScript puro

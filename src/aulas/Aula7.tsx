@@ -6,16 +6,18 @@ import { ImgCanvas, Seg, Slider, Lab, Callout, Term, Code, Caso } from '../ui'
 import { memo } from '../samples'
 import { COR, drawBox, Stat, Chave } from './detui'
 import type { Aula } from '../lesson'
+import { PerceptronLab } from './labsNeuro'
+import { Figura, FigTarefas, FigPerceptron, FigLinhaTempo, FigMLPCNN, FigDoisEstagios, FigUNet, FigArquitetura, FigTarefasYolo } from './figuras'
 
 const FAZ_A: Fazenda = 'A · nelore em pasto verde'
 export const pasto = (seed: number, faz: Fazenda = FAZ_A, arr: Arranjo = 'espalhado') => memo(`pasto${seed}-${faz}-${arr}`, () => makePasto(seed, faz, arr))
 
 const NB7 = 'https://colab.research.google.com/github/tassid/pdi-agro/blob/main/notebooks/Aula7_YOLO_Deteccao.ipynb'
 
-/* ============ Lab 7.1 · três perguntas, três saídas ============ */
+/* ============ Lab 7.2 · três perguntas, três saídas ============ */
 
 function TresSaidas() {
-  const [modo, setModo] = useState<'classificação' | 'detecção' | 'segmentação de instâncias'>('detecção')
+  const [modo, setModo] = useState<'classificação' | 'segmentação semântica' | 'detecção' | 'segmentação de instâncias'>('detecção')
   const [seed, setSeed] = useState(3)
   const p = pasto(seed)
   const seg = useMemo(() => {
@@ -23,6 +25,15 @@ function TresSaidas() {
     for (let i = 0; i < p.w * p.h; i++) {
       const k = p.inst[i]
       for (let c = 0; c < 3; c++) o.data[i * 3 + c] = k < 0 ? p.img.data[i * 3 + c] * 0.45 : CAT[k % CAT.length][c]
+    }
+    return o
+  }, [p])
+  const sem = useMemo(() => {
+    const o: RGB = newRGB(p.w, p.h)
+    for (let i = 0; i < p.w * p.h; i++) {
+      const k = p.inst[i]
+      const c3 = k < 0 ? [p.img.data[i * 3] * 0.45, p.img.data[i * 3 + 1] * 0.45, p.img.data[i * 3 + 2] * 0.45] : [255, 224, 0]
+      for (let c = 0; c < 3; c++) o.data[i * 3 + c] = c3[c]
     }
     return o
   }, [p])
@@ -39,18 +50,18 @@ function TresSaidas() {
     },
     [modo, p],
   )
-  const resposta = modo === 'classificação' ? 'tem boi? sim' : modo === 'detecção' ? `onde? ${p.gts.length} caixas` : `quais pixels? ${p.gts.length} máscaras`
+  const resposta = modo === 'classificação' ? 'tem boi? sim' : modo === 'segmentação semântica' ? 'quais pixels são boi? 1 máscara' : modo === 'detecção' ? `onde? ${p.gts.length} caixas` : `quais pixels de cada um? ${p.gts.length} máscaras`
   return (
-    <Lab n="7.1" title="Três perguntas para a mesma foto" desc="Um voo de drone sobre um piquete. A foto é a mesma; o que muda é a pergunta que a rede responde e, por isso, o formato da saída e o custo de rotular.">
+    <Lab n="7.2" title="Quatro perguntas para a mesma foto" desc="Um voo de drone sobre um piquete. A foto é a mesma; o que muda é a pergunta que a rede responde e, por isso, o formato da saída e o custo de rotular.">
       <div className="controls">
-        <Seg value={modo} options={['classificação', 'detecção', 'segmentação de instâncias'] as const} onChange={setModo} label="tarefa" />
+        <Seg value={modo} options={['classificação', 'segmentação semântica', 'detecção', 'segmentação de instâncias'] as const} onChange={setModo} label="tarefa" />
         <button className="btn ghost" type="button" onClick={() => setSeed((s) => s + 1)}>
           <Shuffle size={15} /> Outro piquete
         </button>
       </div>
       <div className="lab-cols two">
         <div className="panel">
-          <ImgCanvas img={modo === 'segmentação de instâncias' ? seg : p.img} overlay={overlay} label="piquete visto de drone" />
+          <ImgCanvas img={modo === 'segmentação de instâncias' ? seg : modo === 'segmentação semântica' ? sem : p.img} overlay={overlay} label="piquete visto de drone" />
         </div>
         <div className="panel">
           <div className="stats">
@@ -76,9 +87,14 @@ function TresSaidas() {
                 <td>contar, localizar</td>
               </tr>
               <tr>
-                <td>segmentação</td>
+                <td>seg. semântica</td>
+                <td>1 máscara por classe</td>
+                <td>área coberta, daninhas</td>
+              </tr>
+              <tr>
+                <td>seg. de instâncias</td>
                 <td>{p.gts.length} contornos</td>
-                <td>medir área, forma</td>
+                <td>medir cada animal</td>
               </tr>
             </tbody>
           </table>
@@ -89,7 +105,7 @@ function TresSaidas() {
   )
 }
 
-/* ============ Lab 7.2 · anotar como um rotulador ============ */
+/* ============ Lab 7.3 · anotar como um rotulador ============ */
 
 type Fmt = 'YOLO (normalizado)' | 'xyxy em pixels' | 'COCO (x, y, larg, alt)'
 
@@ -154,7 +170,7 @@ function Anotador() {
     URL.revokeObjectURL(a.href)
   }
   return (
-    <Lab n="7.2" title="Rotule o piquete" desc="Arraste para desenhar uma caixa em volta de cada animal, do focinho à anca. Depois ligue o gabarito e veja o IoU de cada caixa sua com a verdade de campo.">
+    <Lab n="7.3" title="Rotule o piquete" desc="Arraste para desenhar uma caixa em volta de cada animal, do focinho à anca. Depois ligue o gabarito e veja o IoU de cada caixa sua com a verdade de campo.">
       <div className="controls">
         <Seg value={fmt} options={['YOLO (normalizado)', 'xyxy em pixels', 'COCO (x, y, larg, alt)'] as const} onChange={setFmt} label="formato do rótulo" />
         <button className="btn" type="button" onClick={() => setGab((g) => !g)}>
@@ -225,7 +241,7 @@ function Anotador() {
   )
 }
 
-/* ============ Lab 7.3 · IoU na mão ============ */
+/* ============ Lab 7.4 · IoU na mão ============ */
 
 function IoULab() {
   const [obj, setObj] = useState<'boi adulto (40×20 px)' | 'bezerro (16×8 px)'>('boi adulto (40×20 px)')
@@ -242,7 +258,7 @@ function IoULab() {
   const S = 4
   const R = (b: Box, p: Record<string, string | number>) => <rect x={b.x0 * S} y={b.y0 * S} width={(b.x1 - b.x0) * S} height={(b.y1 - b.y0) * S} {...p} />
   return (
-    <Lab n="7.3" title="Intersecção sobre união" desc="A caixa amarela é a verdade; a azul é o que o modelo previu. Desloque e mude o tamanho da previsão e veja quando ela deixa de contar como acerto.">
+    <Lab n="7.4" title="Intersecção sobre união" desc="A caixa amarela é a verdade; a azul é o que o modelo previu. Desloque e mude o tamanho da previsão e veja quando ela deixa de contar como acerto.">
       <div className="controls">
         <Seg value={obj} options={['boi adulto (40×20 px)', 'bezerro (16×8 px)'] as const} onChange={setObj} label="objeto" />
         <Slider id="iou-dx" label="erro em x" value={dx} min={-20} max={20} onChange={setDx} fmt={(x) => `${x} px`} />
@@ -279,7 +295,7 @@ function IoULab() {
   )
 }
 
-/* ============ Lab 7.4 · a grade do YOLO ============ */
+/* ============ Lab 7.5 · a grade do YOLO ============ */
 
 type Cabeca = 'P3 · passo 8' | 'P4 · passo 16' | 'P5 · passo 32'
 
@@ -358,7 +374,7 @@ function Grade() {
   )
   return (
     <Lab
-      n="7.4"
+      n="7.5"
       title="A grade que o YOLO enxerga"
       desc="A foto entra redimensionada para imgsz × imgsz. Cada cabeça de detecção olha uma grade: um ponto a cada 8, 16 ou 32 pixels do modelo. Passe o mouse num animal para ver o ponto da grade que o prevê e as quatro distâncias que ele aprende."
     >
@@ -394,7 +410,7 @@ function Grade() {
   )
 }
 
-/* ============ Lab 7.5 · NMS passo a passo ============ */
+/* ============ Lab 7.6 · NMS passo a passo ============ */
 
 type Vista = 'saída bruta' | 'acima da confiança' | 'depois do NMS'
 
@@ -439,7 +455,7 @@ function NmsLab() {
   )
   return (
     <Lab
-      n="7.5"
+      n="7.6"
       title="De muitas caixas para uma por animal"
       desc="A cabeça do YOLO cospe uma caixa candidata em cada ponto da grade. O pós-processamento corta pela confiança e depois aplica a supressão de não máximos (NMS). As candidatas aqui são simuladas a partir da verdade, imitando a saída bruta de um modelo treinado; o corte e o NMS são calculados de verdade."
     >
@@ -510,6 +526,32 @@ vacas = sum(res.names[int(c)] == "cow" for c in res.boxes.cls)
 print("vacas contadas:", vacas)
 res.save("minha_foto_detectada.jpg")`
 
+const CODE_PERC = `# o perceptron de Rosenblatt em 15 linhas
+import numpy as np
+
+def treinar_perceptron(X, y, eta=0.2, epocas=20):
+    w, b = np.zeros(X.shape[1]), 0.0
+    for e in range(epocas):
+        erros = 0
+        for xi, alvo in zip(X, y):
+            saida = int(xi @ w + b >= 0)          # degrau
+            w += eta * (alvo - saida) * xi         # regra de Rosenblatt
+            b += eta * (alvo - saida)
+            erros += int(alvo != saida)
+        print(f"época {e + 1}: {erros} erros, w = {w.round(2)}, b = {b:.2f}")
+        if erros == 0: break
+    return w, b
+
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+treinar_perceptron(X, np.array([0, 0, 0, 1]))   # AND: converge
+treinar_perceptron(X, np.array([0, 1, 1, 0]))   # XOR: nunca chega a 0 erros
+
+# o mesmo com scikit-learn, e a MLP resolvendo o XOR
+from sklearn.linear_model import Perceptron
+from sklearn.neural_network import MLPClassifier
+print(Perceptron().fit(X, [0, 1, 1, 0]).score(X, [0, 1, 1, 0]))                                          # no máximo 0,75
+print(MLPClassifier((4,), activation="tanh", solver="lbfgs", random_state=1).fit(X, [0, 1, 1, 0]).score(X, [0, 1, 1, 0]))  # 1,0`
+
 const CODE_NMS = `# IoU e NMS escritos à mão, para comparar com o que o ultralytics faz por dentro
 import numpy as np
 
@@ -541,11 +583,13 @@ export const aula7: Aula = {
   duracao: 180,
   titulo: 'Onde está e quantos são',
   ideia: 'Detectar é classificar e localizar ao mesmo tempo. O YOLO faz isso num olhar só: uma grade de pontos, cada um chutando uma caixa, e uma faxina no fim.',
-  ementa: ['Classificar, detectar, segmentar', 'Rótulo no formato YOLO', 'IoU', 'Grade, passos e cabeças', 'Sem âncora (v8 em diante)', 'NMS e YOLO26 sem NMS', 'Inferência com ultralytics'],
-  labs: ['Três perguntas', 'Rotule o piquete', 'IoU na mão', 'A grade do YOLO', 'NMS passo a passo'],
+  ementa: ['Perceptron, MLP e CNN', 'Classificar, segmentar, detectar', 'U-Net e R-CNN', 'Rótulo no formato YOLO', 'IoU', 'Grade, passos e cabeças', 'Sem âncora (v8 em diante)', 'NMS e YOLO26 sem NMS', 'Inferência com ultralytics'],
+  labs: ['Um perceptron aprendendo', 'Quatro perguntas', 'Rotule o piquete', 'IoU na mão', 'A grade do YOLO', 'NMS passo a passo'],
   cor: ['#131a9f', '#ffe000', '#1fae4b', '#e0302a'],
   objetivos: [
-    'Diferenciar classificação, detecção e segmentação pela saída e pelo custo de rotular.',
+    'Explicar o perceptron (pesos, viés, degrau, regra de aprendizado), por que ele não resolve o XOR e como a MLP e a CNN resolvem.',
+    'Diferenciar classificação, segmentação semântica, detecção e segmentação de instâncias pela saída e pelo custo de rotular.',
+    'Comparar detectores de dois estágios (R-CNN) e de um estágio (YOLO), e reconhecer a U-Net como arquitetura de segmentação.',
     'Escrever e ler rótulos no formato YOLO e converter para xyxy e COCO.',
     'Calcular IoU à mão e explicar por que objetos pequenos são mais difíceis.',
     'Descrever a arquitetura do YOLO (espinha, pescoço, cabeças em três escalas) e o que cada ponto da grade prevê.',
@@ -554,15 +598,16 @@ export const aula7: Aula = {
   ],
   roteiro: [
     { t: 'Gancho: quem conta o rebanho?', min: 10, tipo: 'gancho' },
-    { t: 'Três tarefas + Lab 7.1', min: 15, tipo: 'conceito' },
-    { t: 'Rotular: Lab 7.2', min: 25, tipo: 'lab' },
-    { t: 'IoU: Lab 7.3', min: 20, tipo: 'conceito' },
+    { t: 'Do perceptron à CNN: Lab 7.1', min: 30, tipo: 'lab' },
+    { t: 'Quatro tarefas, U-Net, R-CNN: Lab 7.2', min: 20, tipo: 'conceito' },
+    { t: 'Rotular: Lab 7.3', min: 15, tipo: 'lab' },
+    { t: 'IoU: Lab 7.4', min: 15, tipo: 'conceito' },
     { t: 'Intervalo', min: 15, tipo: 'pausa' },
-    { t: 'Por dentro do YOLO + Lab 7.4', min: 25, tipo: 'conceito' },
-    { t: 'NMS: Lab 7.5', min: 25, tipo: 'lab' },
-    { t: 'Caso real: gado no Piauí', min: 15, tipo: 'conceito' },
-    { t: 'Colab: YOLO pronto', min: 20, tipo: 'lab' },
-    { t: 'Fechamento + quiz', min: 10, tipo: 'fecho' },
+    { t: 'Por dentro do YOLO: Lab 7.5', min: 25, tipo: 'conceito' },
+    { t: 'NMS: Lab 7.6', min: 20, tipo: 'lab' },
+    { t: 'Caso real: gado no Piauí', min: 10, tipo: 'conceito' },
+    { t: 'Colab: perceptron e YOLO pronto', min: 15, tipo: 'lab' },
+    { t: 'Fechamento + quiz', min: 5, tipo: 'fecho' },
   ],
   secoes: [
     {
@@ -581,7 +626,7 @@ export const aula7: Aula = {
           </p>
           <Callout kind="prof" title="Nota pra quem dá a aula · 10 min">
             <p>
-              Abra com a pergunta: "quantos bois tem nesse piquete?" e projete o Lab 7.1 sem as caixas. Dê 30 segundos, colete os chutes no quadro. Vai dar diferença de 2 ou 3 entre a turma. Depois ligue a detecção.
+              Abra com a pergunta: "quantos bois tem nesse piquete?" e projete o Lab 7.2 sem as caixas. Dê 30 segundos, colete os chutes no quadro. Vai dar diferença de 2 ou 3 entre a turma. Depois ligue a detecção.
               Pergunte: e se fossem 3 mil cabeças em 400 hectares, toda semana?
             </p>
           </Callout>
@@ -589,17 +634,171 @@ export const aula7: Aula = {
       ),
     },
     {
-      id: 'a7-tarefas',
-      titulo: 'Classificar, detectar, segmentar',
-      min: 15,
+      id: 'a7-perceptron',
+      titulo: 'Do perceptron à CNN: de onde vem o YOLO',
+      min: 30,
       body: (
         <div className="prose">
           <p>
-            As três tarefas usam a mesma espinha convolucional da Aula 6. O que muda é a <b>cabeça</b> no fim da rede e o que se rotula. Na classificação, uma palavra por foto. Na detecção, uma caixa por objeto. Na
-            segmentação de instâncias, um contorno por objeto. A família YOLO do ultralytics faz as três (e ainda pose e caixas giradas, a OBB), trocando só o sufixo do arquivo de pesos: <code>yolo26n.pt</code>,{' '}
-            <code>yolo26n-seg.pt</code>, <code>yolo26n-cls.pt</code>.
+            Antes de abrir o YOLO, vale descer até a peça mais simples de qualquer rede neural. Em 1943, McCulloch e Pitts propuseram um neurônio lógico: soma entradas e “dispara” se a soma passa de um limiar. Em 1958,
+            Frank Rosenblatt deu a esse neurônio um jeito de <b>aprender</b> os pesos a partir de exemplos. Foi o <b>perceptron</b>.
           </p>
+          <Figura n="7.1" legenda="Do neurônio de 1943 ao YOLO26: cada etapa resolveu um limite da anterior.">
+            <FigLinhaTempo />
+          </Figura>
+          <p>
+            Pense numa folha de soja fotografada. Medimos duas coisas na imagem (Aula 3): x₁, a fração de pixels amarelo-alaranjados (pústulas de ferrugem), e x₂, um índice de verde. O perceptron multiplica cada
+            entrada por um <b>peso</b>, soma um <b>viés</b> e passa o resultado por uma função <b>degrau</b>: se a soma for maior ou igual a zero, responde 1 (ferrugem); senão, 0 (sadia).
+          </p>
+          <Figura n="7.2" legenda="O perceptron: entradas, pesos, soma ponderada e degrau. Aprender é só ajustar w₁, w₂ e b.">
+            <FigPerceptron />
+          </Figura>
+          <p>Como ele aprende? Mostra um exemplo, compara a saída com o alvo e, se errou, corrige:</p>
+          <p style={{ textAlign: 'center', fontFamily: 'var(--f-math)', fontSize: '1.1rem' }}>wᵢ ← wᵢ + η · (alvo − saída) · xᵢ &nbsp;&nbsp;&nbsp; b ← b + η · (alvo − saída)</p>
+          <p>
+            Se acertou, (alvo − saída) = 0 e nada muda. Se disse 0 e era 1, os pesos crescem na direção daquele exemplo; se disse 1 e era 0, diminuem. O η (eta) é a <b>taxa de aprendizado</b>: o tamanho do passo. Uma
+            passada por todos os exemplos é uma <b>época</b>. Geometricamente, w₁·x₁ + w₂·x₂ + b = 0 é uma reta, e o perceptron vai girando e deslocando essa reta até separar as classes.
+          </p>
+          <PerceptronLab />
+          <Callout kind="prof" title="Nota pra quem dá a aula · dinâmica de 10 min">
+            <p>
+              Faça o AND à mão no quadro, com a turma: pesos iniciais w₁ = w₂ = 0, b = 0, η = 1. Apresente os 4 exemplos em ordem e anote a tabela (x₁, x₂, alvo, soma, saída, erro, novos pesos). Em 3 ou 4 épocas
+              converge. Depois tente o XOR no lab e deixe a turma descobrir que não há reta possível. É o melhor jeito de justificar as camadas ocultas.
+            </p>
+          </Callout>
+          <h3>Por que o XOR derrubou o perceptron (e o que veio depois)</h3>
+          <p>
+            Em 1969, Minsky e Papert mostraram que um perceptron sozinho só aprende o que é <b>linearmente separável</b>. O XOR não é: nenhuma reta deixa (0,1) e (1,0) de um lado e (0,0) e (1,1) do outro. Isso esfriou
+            a área por mais de uma década. A saída foi empilhar perceptrons em camadas, a <b>MLP</b> (perceptron multicamadas), trocar o degrau por funções suaves (sigmoide, tanh, ReLU) e treinar com{' '}
+            <b>retropropagação do gradiente</b> (Rumelhart, Hinton e Williams, 1986). Com uma camada oculta, a MLP já resolve o XOR.
+          </p>
+          <Figura n="7.3" legenda="Esquerda: a MLP liga cada neurônio a todos os da camada anterior. Direita: a CNN da Aula 6 usa o mesmo filtro pequeno deslizando pela imagem inteira.">
+            <FigMLPCNN />
+          </Figura>
+          <p>
+            Para imagens, a MLP tem um problema: uma foto de 640 × 640 × 3 tem 1,2 milhão de entradas, e cada neurônio da primeira camada precisaria de 1,2 milhão de pesos. A <b>CNN</b> resolve com convolução: o mesmo
+            filtro de 3 × 3 desliza pela imagem, com poucos pesos, e acha bordas, manchas e depois formas inteiras em qualquer posição. O YOLO é uma CNN dessas, com uma cabeça que, em vez de uma classe, devolve caixas.
+          </p>
+          <div className="tbl-wrap">
+            <table className="tbl wrap1">
+              <thead>
+                <tr>
+                  <th>modelo</th>
+                  <th>o que aprende</th>
+                  <th>limite</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>perceptron</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>uma reta (um plano) que separa duas classes</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>não resolve o XOR</td>
+                </tr>
+                <tr>
+                  <td>MLP</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>fronteiras curvas, com camadas ocultas</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>pesos demais para imagens</td>
+                </tr>
+                <tr>
+                  <td>CNN</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>filtros que viram detectores de padrões</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>sozinha, só diz “o quê”</td>
+                </tr>
+                <tr>
+                  <td>YOLO</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>CNN + cabeças que dizem “o quê e onde”</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>objetos muito pequenos ou grudados</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <Callout kind="analogia">
+            <p>
+              O perceptron é um peão que só sabe uma regra: “se a folha tem mais amarelo do que verde, é ferrugem”. A MLP é uma equipe de peões que combinam regras simples. A CNN é a equipe que, em vez de olhar a folha
+              inteira de uma vez, passa uma lupa pequena por cada pedacinho dela.
+            </p>
+          </Callout>
+        </div>
+      ),
+    },
+    {
+      id: 'a7-tarefas',
+      titulo: 'Classificar, segmentar, detectar',
+      min: 20,
+      body: (
+        <div className="prose">
+          <p>
+            Com a CNN em mãos, dá para fazer quatro perguntas diferentes à mesma foto. Todas usam a mesma espinha convolucional; o que muda é a <b>cabeça</b> no fim da rede e o que se rotula:
+          </p>
+          <ul>
+            <li>
+              <b>Classificação</b> responde “o quê?”: um rótulo por foto (“tem ferrugem”, “pasto com bovinos”).
+            </li>
+            <li>
+              <b>Segmentação semântica</b> responde “o quê, em cada pixel?”: todo pixel recebe uma classe (bovino, capim, solo), mas dois bois encostados viram uma mancha só.
+            </li>
+            <li>
+              <b>Detecção</b> responde “o quê e onde?”: uma caixa, uma classe e uma confiança por objeto. Dá para contar.
+            </li>
+            <li>
+              <b>Segmentação de instâncias</b> junta as duas: cada objeto com a sua máscara. Dá para contar e medir.
+            </li>
+          </ul>
+          <Figura n="7.4" legenda="As quatro tarefas na mesma foto de piquete. A rede e o rótulo ficam mais caros da esquerda para a direita.">
+            <FigTarefas />
+          </Figura>
           <TresSaidas />
+          <h3>Como a rede devolve uma máscara: a U-Net</h3>
+          <p>
+            Para segmentar, a rede precisa devolver uma imagem do mesmo tamanho da entrada. A <b>U-Net</b> (Ronneberger, Fischer e Brox, 2015), criada para imagens de microscopia, faz isso com um codificador que vai
+            reduzindo a imagem e entendendo “o quê”, e um decodificador que vai ampliando de volta e dizendo “onde”. As ligações entre os dois lados (o “U”) trazem os detalhes finos que se perderam na redução. É a
+            arquitetura mais usada para segmentar folhas, lesões, daninhas e talhões.
+          </p>
+          <Figura n="7.5" legenda="U-Net: o codificador (azul) reduz, o decodificador (amarelo) amplia, e as ligações tracejadas copiam os detalhes de cada nível.">
+            <FigUNet />
+          </Figura>
+          <h3>Como a rede devolve caixas: dois estágios ou um só</h3>
+          <p>
+            A primeira família de detectores com CNN trabalhava em <b>dois estágios</b>. O R-CNN (Girshick et al., 2014) propunha umas 2.000 regiões candidatas com um algoritmo clássico, recortava cada uma e passava pela
+            CNN para classificar. O Fast R-CNN e o Faster R-CNN aceleraram isso, mas a ideia continuou: primeiro “onde pode ter algo”, depois “o que é”. O YOLO (Redmon et al., 2016) virou a mesa: <b>um estágio só</b>,
+            a imagem inteira passa uma vez pela rede, e a grade de saída já devolve caixas e classes.
+          </p>
+          <Figura n="7.6" legenda="Em cima, o detector de dois estágios recorta e classifica cada região. Embaixo, o YOLO olha a imagem inteira uma vez.">
+            <FigDoisEstagios />
+          </Figura>
+          <div className="tbl-wrap">
+            <table className="tbl wrap1">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>dois estágios (Faster R-CNN)</th>
+                  <th>um estágio (YOLO)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>como olha</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>região por região</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>a imagem inteira de uma vez, com o contexto em volta</td>
+                </tr>
+                <tr>
+                  <td>velocidade</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>mais lento</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>tempo real, cabe em drone e câmera de curral</td>
+                </tr>
+                <tr>
+                  <td>ponto fraco</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>custo e complexidade</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>objetos pequenos e muito juntos (as primeiras versões, sobretudo)</td>
+                </tr>
+                <tr>
+                  <td>no agro</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>trabalhos de pesquisa com poucas imagens grandes</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>contagem em vídeo, máquinas, embarcados</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <Callout kind="campo">
             <p>
               Contagem de gado, de frutos na planta, de plantas emergidas na linha, de ovos na bandeja, de insetos na armadilha adesiva: tudo isso é detecção. Área foliar lesionada e cobertura de daninhas pedem
@@ -612,7 +811,7 @@ export const aula7: Aula = {
     {
       id: 'a7-rotulo',
       titulo: 'A caixa e o arquivo de rótulo',
-      min: 25,
+      min: 15,
       body: (
         <div className="prose">
           <p>
@@ -631,7 +830,7 @@ export const aula7: Aula = {
             </li>
           </ul>
           <Anotador />
-          <Callout kind="prof" title="Nota pra quem dá a aula · dinâmica de 15 min">
+          <Callout kind="prof" title="Nota pra quem dá a aula · dinâmica de 10 min">
             <p>
               Em duplas: cada um rotula o mesmo piquete sem conversar (use o botão "Outro piquete" até cair na mesma semente, ou projete e todos rotulam o piquete 5). Comparem as linhas do .txt. Onde a caixa de vocês
               discordou? Cabeça abaixada, rabo, sombra, animal cortado pela borda. Sem uma <b>regra de rotulagem escrita</b>, o modelo aprende a indecisão do rotulador.
@@ -649,7 +848,7 @@ export const aula7: Aula = {
     {
       id: 'a7-iou',
       titulo: 'Quando uma caixa é acerto?',
-      min: 20,
+      min: 15,
       body: (
         <div className="prose">
           <p>
@@ -690,8 +889,8 @@ export const aula7: Aula = {
       body: (
         <div className="prose">
           <p>
-            Antes do YOLO, detectores como o Faster R-CNN trabalhavam em <b>dois estágios</b>: primeiro propunham regiões que talvez tivessem objeto, depois classificavam cada região. O YOLO original (Redmon et al.,
-            2016) trocou isso por <b>um único passe</b>: a rede divide a imagem numa grade e cada célula prevê caixas e classes de uma vez. Perde um pouco de precisão, ganha muita velocidade.
+            Vimos na Figura 7.6 que o YOLO faz tudo num passe só: a rede divide a imagem numa grade e cada célula prevê caixas e classes de uma vez. No YOLO original (2016) era uma grade de 7 × 7 com duas caixas
+            por célula; hoje são três grades de tamanhos diferentes. Vamos abrir a caixa-preta.
           </p>
           <p>Toda versão moderna tem três partes:</p>
           <ul>
@@ -710,6 +909,9 @@ export const aula7: Aula = {
             <b>sem âncora</b>: o ponto prevê direto as quatro distâncias até as bordas do objeto (esquerda, topo, direita, base: l, t, r, b). No treino, um <Term def="Task-Aligned Assigner: para cada objeto verdadeiro, escolhe os pontos da grade cuja previsão combina melhor nota de classe e IoU, e só esses aprendem aquele objeto.">atribuidor</Term>{' '}
             decide quais pontos aprendem cada animal.
           </p>
+          <Figura n="7.7" legenda="As três partes do YOLO. A espinha reduz a imagem em cinco etapas; o pescoço mistura P3, P4 e P5; uma cabeça por escala prevê classes e caixas.">
+            <FigArquitetura />
+          </Figura>
           <Grade />
           <div className="tbl-wrap">
             <table className="tbl wrap1">
@@ -760,13 +962,101 @@ export const aula7: Aula = {
             </table>
           </div>
           <p className="note">As versões "vN" não são todas do mesmo grupo: v4, v7 e v9 vieram de outros autores. Para a sala, o que interessa é a linha do ultralytics (v5, v8, 11, 26), que é a que vocês vão usar.</p>
+          <h3>Como o YOLO aprende: a função de perda</h3>
+          <p>
+            No perceptron, o erro era só (alvo − saída). No YOLO, cada ponto da grade escolhido pelo atribuidor gera três erros, somados com pesos (os hiperparâmetros <code>box</code>, <code>cls</code> e, até o YOLO11,{' '}
+            <code>dfl</code>):
+          </p>
+          <ul>
+            <li>
+              <b>Perda de caixa</b>: quanto a caixa prevista se afasta da verdadeira, medida com uma variante do IoU (CIoU). É o <code>box_loss</code> do <code>results.csv</code>.
+            </li>
+            <li>
+              <b>Perda de classe</b>: entropia cruzada binária entre as notas previstas e a classe certa. Pontos de fundo aprendem a dar nota baixa para tudo. É o <code>cls_loss</code>.
+            </li>
+            <li>
+              <b>Perda de distribuição</b> (DFL, até o YOLO11): refina as distâncias l, t, r, b. O YOLO26 tirou essa parte para ficar mais leve e mais fácil de exportar.
+            </li>
+          </ul>
+          <p>
+            A retropropagação faz o mesmo papel da regra do perceptron, só que para milhões de pesos de uma vez: cada peso anda um pouquinho na direção que diminui a soma desses erros.
+          </p>
+          <h3>Um YOLO, cinco tarefas</h3>
+          <p>
+            A espinha e o pescoço são os mesmos; o que muda é a cabeça. Na <b>segmentação</b>, a cabeça prevê, além da caixa, alguns coeficientes que combinam um pequeno conjunto de “máscaras-protótipo” gerado a partir
+            do mapa P3 (a ideia do YOLACT), e daí sai a máscara de cada objeto. Na <b>classificação</b>, a cabeça de caixas é trocada por uma camada que dá uma nota por classe para a foto inteira. Há ainda <b>pose</b>{' '}
+            (pontos-chave, como as articulações de um animal) e <b>OBB</b> (caixas giradas).
+          </p>
+          <Figura n="7.8" legenda="A mesma família de modelos, cinco tarefas. Muda o arquivo de pesos e o formato do rótulo.">
+            <FigTarefasYolo />
+          </Figura>
+          <div className="tbl-wrap">
+            <table className="tbl wrap1">
+              <thead>
+                <tr>
+                  <th>tarefa</th>
+                  <th>pesos</th>
+                  <th>uma linha do rótulo</th>
+                  <th>no agro</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>detectar</td>
+                  <td>
+                    <code>yolo26n.pt</code>
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>
+                    <code>0 cx cy w h</code>
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>contar gado, frutos, pragas na armadilha</td>
+                </tr>
+                <tr>
+                  <td>segmentar</td>
+                  <td>
+                    <code>yolo26n-seg.pt</code>
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>
+                    <code>0 x1 y1 x2 y2 ... xn yn</code> (polígono)
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>área de lesão, copa de árvore, daninhas</td>
+                </tr>
+                <tr>
+                  <td>classificar</td>
+                  <td>
+                    <code>yolo26n-cls.pt</code>
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>sem .txt: uma pasta por classe</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>folha sadia ou doente, grão bom ou ardido</td>
+                </tr>
+                <tr>
+                  <td>pose</td>
+                  <td>
+                    <code>yolo26n-pose.pt</code>
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>caixa + x y visível de cada ponto</td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>postura e claudicação de vacas</td>
+                </tr>
+                <tr>
+                  <td>caixa girada</td>
+                  <td>
+                    <code>yolo26n-obb.pt</code>
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>
+                    <code>0 x1 y1 x2 y2 x3 y3 x4 y4</code>
+                  </td>
+                  <td style={{ textAlign: 'left', whiteSpace: 'normal' }}>gado e máquinas vistos de cima, linhas de plantio</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       ),
     },
     {
       id: 'a7-nms',
       titulo: 'A faxina no fim: confiança e NMS',
-      min: 25,
+      min: 20,
       body: (
         <div className="prose">
           <p>
@@ -795,7 +1085,7 @@ export const aula7: Aula = {
     {
       id: 'a7-caso',
       titulo: 'Caso real: gado contado por drone no Piauí',
-      min: 15,
+      min: 10,
       body: (
         <div className="prose">
           <Caso
@@ -840,15 +1130,16 @@ export const aula7: Aula = {
     {
       id: 'a7-colab',
       titulo: 'Mão na massa: um YOLO pronto no Colab',
-      min: 20,
+      min: 15,
       body: (
         <div className="prose">
           <p>
-            O <a href={NB7} target="_blank" rel="noreferrer">notebook da Aula 7</a> faz três coisas: (1) roda o <code>yolo26n.pt</code> numa foto de vocês e conta as vacas; (2) implementa IoU e NMS à mão e confere com
+            O <a href={NB7} target="_blank" rel="noreferrer">notebook da Aula 7</a> começa com o perceptron do Lab 7.1 escrito à mão (AND converge, XOR não) e a MLP do scikit-learn resolvendo o XOR. Depois faz três coisas: (1) roda o <code>yolo26n.pt</code> numa foto de vocês e conta as vacas; (2) implementa IoU e NMS à mão e confere com
             a torchvision; (3) roda o mesmo modelo num piquete visto de cima. Nos nossos testes ele não achou nenhuma vaca: chamou os bois de pipa (<i>kite</i>) e de pássaro (<i>bird</i>).
           </p>
           <Code code={CODE_INFER} title="Python · ultralytics" />
           <Code code={CODE_NMS} title="Python · numpy + torchvision" />
+          <Code code={CODE_PERC} title="Python · o perceptron do Lab 7.1, à mão e com scikit-learn" />
           <Callout kind="pegadinha" title="Por que o modelo do COCO não vê o boi de cima?">
             <p>
               O COCO tem a classe <i>cow</i>, mas quase todas as fotos são de lado, na altura dos olhos. Visto de drone, o boi é uma elipse clara com sombra, coisa que o modelo nunca viu. É o aprendizado por atalho da
@@ -861,10 +1152,13 @@ export const aula7: Aula = {
     {
       id: 'a7-fecho',
       titulo: 'Pra levar pra casa',
-      min: 10,
+      min: 5,
       body: (
         <div className="prose">
           <ol>
+            <li>Perceptron = pesos + viés + degrau, aprende corrigindo o erro. Sozinho, só separa com uma reta (não faz XOR); em camadas vira MLP, com convolução vira CNN.</li>
+            <li>Classificação diz o quê; segmentação semântica, o quê em cada pixel; detecção, o quê e onde; instâncias, cada objeto com sua máscara (U-Net e YOLO-seg).</li>
+            <li>Dois estágios (R-CNN) recortam e classificam regiões; um estágio (YOLO) olha a imagem inteira de uma vez.</li>
             <li>Detector = para cada objeto, uma caixa, uma classe e uma confiança. Contar vira contar caixas.</li>
             <li>Rótulo YOLO: um .txt por imagem, <code>classe cx cy w h</code> normalizados. Confira desenhando de volta.</li>
             <li>IoU decide se a caixa é acerto. Objeto pequeno sofre mais com o mesmo erro em pixels.</li>
@@ -876,6 +1170,30 @@ export const aula7: Aula = {
     },
   ],
   quiz: [
+    {
+      p: 'Um perceptron com w₁ = 1, w₂ = 1 e b = −1,5 (degrau em zero) implementa qual porta lógica?',
+      o: ['OR', 'AND', 'XOR', 'NOT'],
+      a: 1,
+      e: 'Só (1,1) dá 1 + 1 − 1,5 = 0,5 ≥ 0. Os outros dão soma negativa. É o AND.',
+    },
+    {
+      p: 'Por que um perceptron sozinho não aprende o XOR?',
+      o: ['A taxa de aprendizado é pequena', 'Faltam épocas', 'Não existe uma reta que separe as duas classes do XOR', 'O degrau não é derivável'],
+      a: 2,
+      e: 'O perceptron só traça uma reta (um hiperplano). O XOR não é linearmente separável; é preciso uma camada oculta (MLP).',
+    },
+    {
+      p: 'Você quer a área de cada lesão de ferrugem numa folha. Qual tarefa?',
+      o: ['Classificação', 'Detecção', 'Segmentação (de instâncias)', 'Pose'],
+      a: 2,
+      e: 'Área pede pixels. Uma caixa superestima a área de uma lesão irregular; a máscara de cada lesão dá a medida.',
+    },
+    {
+      p: 'Qual a principal diferença entre o Faster R-CNN e o YOLO?',
+      o: ['O YOLO não usa CNN', 'O Faster R-CNN propõe regiões e depois classifica; o YOLO prevê caixas e classes numa única passada', 'O YOLO só classifica', 'O Faster R-CNN não precisa de rótulos'],
+      a: 1,
+      e: 'Dois estágios contra um. Um estágio é mais rápido e vê o contexto da imagem inteira.',
+    },
     {
       p: 'A linha "0 0.5 0.5 0.2 0.1" num rótulo YOLO de uma foto 1000×600 descreve uma caixa de que tamanho em pixels?',
       o: ['200 × 60', '200 × 100', '0,2 × 0,1 pixel', '500 × 300'],
@@ -912,7 +1230,7 @@ export const aula7: Aula = {
       nivel: 'Aquecimento',
       txt: (
         <>
-          Rotule 3 piquetes no Lab 7.2 e baixe os .txt. Escreva em 5 linhas a sua regra de rotulagem (cabeça entra? sombra entra? animal cortado pela borda entra?).
+          Rotule 3 piquetes no Lab 7.3 e baixe os .txt. Escreva em 5 linhas a sua regra de rotulagem (cabeça entra? sombra entra? animal cortado pela borda entra?).
         </>
       ),
     },
@@ -935,6 +1253,17 @@ export const aula7: Aula = {
     },
   ],
   leitura: [
+    <>
+      Stanford CS231n, aula 9 (2024): <i>Object Detection and Image Segmentation</i>. A referência clássica, com classificação, segmentação semântica, detecção e instâncias lado a lado.{' '}
+      <a href="https://cs231n.stanford.edu/" target="_blank" rel="noreferrer">cs231n.stanford.edu</a>
+    </>,
+    <>IIT Gandhinagar, ES 667, aula 9 (2026): da classificação às caixas, IoU e NMS, YOLO numa passada e U-Net, muito didática.</>,
+    <>Universidade de Toronto, CSC420 (2025): separa bem “o quê”, “o quê e onde” e “rótulo por pixel”.</>,
+    <>USP, PSI5886 (em português): R-CNN, Faster R-CNN e YOLO, com os prós e contras de cada um.</>,
+    <>IIT Kharagpur, CS60010, <i>Detection and Segmentation</i>: 106 slides do R-CNN ao YOLO. Weizmann, DL4CV: tutorial de YOLO com a função de perda e o treino.</>,
+    <>UFPR, Prof. David Menotti; UFPE, Prof. Aluizio Araújo; UFU, Prof. Marcelo Albertini (em português): perceptron, XOR, gradiente, MLP e retropropagação. Wisconsin, CS 540 (2025): o perceptron aprendendo AND e OR.</>,
+    <>RONNEBERGER, O.; FISCHER, P.; BROX, T. U-Net: convolutional networks for biomedical image segmentation. MICCAI, 2015.</>,
+    <>GIRSHICK, R. et al. Rich feature hierarchies for accurate object detection and semantic segmentation (R-CNN). CVPR, 2014.</>,
     <>REDMON, J.; DIVVALA, S.; GIRSHICK, R.; FARHADI, A. You Only Look Once: unified, real-time object detection. CVPR, 2016. O artigo que começou tudo, curto e legível.</>,
     <>LEAL, I. et al. Automatic cattle detection and counting system in aerial images using computer vision algorithms. ENIAC, 2024. O caso da aula.</>,
     <>

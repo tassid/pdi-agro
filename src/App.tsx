@@ -162,7 +162,7 @@ function Home() {
             <span className="chip">3 aulas · graduação</span>
             <span className="chip">3 aulas · mestrado</span>
             <span className="chip">2 aulas de 3 h · YOLO</span>
-            <span className="chip">34 laboratórios</span>
+            <span className="chip">37 laboratórios</span>
             <span className="chip">9 casos reais</span>
             <span className="chip">nada para instalar</span>
           </div>
@@ -224,7 +224,7 @@ function Home() {
             <div className="eyebrow">{TRILHA.yolo.disc}</div>
             <h2>Módulo YOLO · 2 aulas de 3 horas</h2>
           </div>
-          <p>Detecção de objetos de ponta a ponta: rotular no formato YOLO, IoU, a grade e as cabeças do modelo, NMS, treino com transfer learning, mAP, mudança de domínio e contagem em vídeo com rastreamento. Tudo com bois vistos de drone e o yolo26n no Colab.</p>
+          <p>Do perceptron ao YOLO: classificar, segmentar e detectar, U-Net e R-CNN, rótulo e IoU, a grade e as cabeças do modelo, NMS, rotulagem no CVAT, treino com transfer learning, parada antecipada, busca em grade e aleatória, mAP, mudança de domínio e contagem em vídeo. Tudo com bois vistos de drone e o yolo26n no Colab.</p>
         </div>
         <div className="cards">
           {yolo.map((a) => (
