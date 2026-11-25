@@ -1,472 +1,377 @@
-import { secaoTomate } from '../casos/Tomate'
-import { useMemo, useState } from 'react'
-import { type RGB, pixelate, quantize, plane, histogram, rgb2hsv, rgb2lab, hsv2rgb, type ColorPlane } from '../lib/img'
-import { makeField } from '../lib/synth'
-import { ImgCanvas, Slider, Seg, SourcePicker, Lab, Callout, Term, Code, Histogram, rgbStr } from '../ui'
-import { memo, useSource } from '../samples'
-import type { Aula } from '../lesson'
-
-/* ============ Lab 1.1 · lupa de pixels ============ */
-
-function LupaPixels() {
-  const src = useSource('lavoura')
-  const [p, setP] = useState<[number, number]>([140, 110])
-  const [modo, setModo] = useState<'RGB' | 'R' | 'G' | 'B'>('RGB')
-  const img = src.img
-  const R = 3
-  const cells: { c: [number, number, number]; x: number; y: number }[] = []
-  for (let j = -R; j <= R; j++)
-    for (let i = -R; i <= R; i++) {
-      const x = Math.min(img.w - 1, Math.max(0, p[0] + i)), y = Math.min(img.h - 1, Math.max(0, p[1] + j))
-      const k = (y * img.w + x) * 3
-      cells.push({ c: [img.data[k], img.data[k + 1], img.data[k + 2]], x, y })
-    }
-  const overlay = useMemo(
-    () => (ctx: CanvasRenderingContext2D, s: number) => {
-      ctx.strokeStyle = '#fff'
-      ctx.lineWidth = 2
-      ctx.strokeRect((p[0] - R) * s, (p[1] - R) * s, (2 * R + 1) * s, (2 * R + 1) * s)
-      ctx.strokeStyle = '#000'
-      ctx.lineWidth = 1
-      ctx.strokeRect((p[0] - R) * s - 2, (p[1] - R) * s - 2, (2 * R + 1) * s + 4, (2 * R + 1) * s + 4)
-    },
-    [p],
-  )
-  const ci = modo === 'R' ? 0 : modo === 'G' ? 1 : modo === 'B' ? 2 : -1
-  return (
-    <Lab n="1.1" title="Lupa de pixels" desc="Passe o mouse (ou o dedo) sobre a imagem. À direita aparecem os números que o computador realmente enxerga em volta daquele ponto.">
-      <SourcePicker {...src.pickerProps} />
-      <div className="lab-cols two">
-        <div className="panel">
-          <div className="panel-t">
-            <span>imagem · {img.w}×{img.h} px</span>
-            <span>
-              (x={p[0]}, y={p[1]})
-            </span>
-          </div>
-          <ImgCanvas img={img} overlay={overlay} onPixel={(x, y) => setP([x, y])} label="imagem para inspecionar pixels" />
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>vizinhança 7×7</span>
-            <Seg value={modo} options={['RGB', 'R', 'G', 'B'] as const} onChange={setModo} />
-          </div>
-          <div className="pxgrid" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {cells.map((c, i) => {
-              const show: [number, number, number] = ci < 0 ? c.c : [ci === 0 ? c.c[0] : 0, ci === 1 ? c.c[1] : 0, ci === 2 ? c.c[2] : 0]
-              const lum = 0.299 * show[0] + 0.587 * show[1] + 0.114 * show[2]
-              return (
-                <div key={i} style={{ background: rgbStr(show), color: lum > 120 ? '#111' : '#f4f4f4', outline: i === 24 ? '2px solid var(--grain)' : undefined }}>
-                  {ci < 0 ? (
-                    <>
-                      <span>{Math.round(c.c[0])}</span>
-                      <span>{Math.round(c.c[1])}</span>
-                      <span>{Math.round(c.c[2])}</span>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: '0.72rem' }}>{Math.round((c.c as number[])[ci])}</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <p className="note">
-            Cada quadradinho é um pixel. No modo RGB, os três números são R, G e B (de 0 a 255). Tente achar um pixel de planta: o G ganha dos outros dois?
-          </p>
-        </div>
-      </div>
-    </Lab>
-  )
-}
-
-/* ============ Lab 1.2 · GSD, amostragem e quantização ============ */
-
-const SENSOR_MM = 13.2, FOCAL_MM = 8.8, IMG_W = 5472, IMG_H = 3648
-const BASE_GSD = 0.5 // cm/px da imagem sintética
-
-function Amostragem() {
-  const [alt, setAlt] = useState(40)
-  const [bits, setBits] = useState(8)
-  const [seed, setSeed] = useState(3)
-  const scene = memo(`gsd${seed}`, () => makeField(360, 240, seed, { espacamento: 90, passo: 15, cobertura: 0.28, daninhas: 34, estresse: 0.2, angulo: 4 }))
-  const gsd = (alt * 100 * SENSOR_MM) / (FOCAL_MM * IMG_W) // cm/px
-  const block = Math.max(1, Math.round(gsd / BASE_GSD))
-  const out = useMemo(() => quantize(pixelate(scene.rgb, block), bits), [scene, block, bits])
-  const footW = (gsd * IMG_W) / 100, footH = (gsd * IMG_H) / 100
-  const efetiva = footW * footH * 0.25 * 0.3
-  const fotos = Math.ceil(1_000_000 / efetiva)
-  const mb = (IMG_W * IMG_H * 3 * bits) / 8 / 1e6
-  return (
-    <Lab
-      n="1.2"
-      title="Qual altura voar? (amostragem e quantização)"
-      desc="A imagem mostra plântulas de soja com algumas plantas daninhas pequenas na entrelinha. Suba o drone e veja quando as daninhas deixam de ser enxergáveis. Depois, reduza os bits."
-    >
-      <div className="controls">
-        <Slider id="alt" label="altura de voo" value={alt} min={10} max={120} step={5} onChange={setAlt} fmt={(v) => `${v} m`} />
-        <Slider id="bits" label="bits por canal" value={bits} min={1} max={8} onChange={setBits} fmt={(v) => `${v} bits = ${2 ** v} níveis`} />
-        <button type="button" className="btn ghost" onClick={() => setSeed((s) => s + 1)}>
-          Outro talhão
-        </button>
-      </div>
-      <div className="lab-cols two">
-        <div className="panel">
-          <div className="panel-t">
-            <span>como a câmera vê a {alt} m</span>
-            <span>1 pixel ≈ {gsd.toFixed(2)} cm</span>
-          </div>
-          <ImgCanvas img={out} pixelated label="talhão simulado na altura escolhida" />
-        </div>
-        <div className="panel">
-          <div className="formula">
-            GSD = (H × largura_sensor) / (f × largura_imagem)
-            <br />= ({alt} m × 100 × {SENSOR_MM} mm) / ({FOCAL_MM} mm × {IMG_W} px)
-            <br />= <b>{gsd.toFixed(2)} cm/px</b>
-          </div>
-          <div className="stats">
-            <div className="stat">
-              <b>
-                {footW.toFixed(0)} × {footH.toFixed(0)} m
-              </b>
-              <span>área de 1 foto no chão</span>
-            </div>
-            <div className="stat">
-              <b>{fotos.toLocaleString('pt-BR')}</b>
-              <span>fotos p/ cobrir 100 ha*</span>
-            </div>
-            <div className="stat">
-              <b>{mb.toFixed(1)} MB</b>
-              <span>1 foto sem compressão</span>
-            </div>
-            <div className="stat">
-              <b>{((fotos * mb) / 1000).toFixed(0)} GB</b>
-              <span>o voo inteiro, cru</span>
-            </div>
-          </div>
-          <p className="note">
-            *Com 75% de sobreposição frontal e 70% lateral, valores comuns para gerar ortomosaico. Câmera de referência: sensor de 1″ (13,2 mm), lente de 8,8 mm, 5472×3648 px, típica de drones
-            RGB de mapeamento.
-          </p>
-        </div>
-      </div>
-    </Lab>
-  )
-}
-
-/* ============ Lab 1.3 · espaços de cor ============ */
-
-const PLANES: ColorPlane[] = ['R', 'G', 'B', 'Cinza', 'H', 'S', 'V', 'L*', 'a*', 'b*']
-const hueLUT = (v: number) => hsv2rgb((v / 255) * 359, 0.85, 0.95) as [number, number, number]
-
-function EspacosDeCor() {
-  const src = useSource('folha')
-  const [pl, setPl] = useState<ColorPlane>('a*')
-  const [pick, setPick] = useState<[number, number] | null>(null)
-  const img: RGB = src.img
-  const g = useMemo(() => plane(img, pl), [img, pl])
-  const hist = useMemo(() => histogram(g, 64), [g])
-  const px = pick ?? [Math.floor(img.w / 2), Math.floor(img.h / 2)]
-  const k = (px[1] * img.w + px[0]) * 3
-  const c: [number, number, number] = [img.data[k], img.data[k + 1], img.data[k + 2]]
-  const [h, s, v] = rgb2hsv(...c)
-  const [L, A, B] = rgb2lab(...c)
-  const overlay = useMemo(
-    () => (ctx: CanvasRenderingContext2D, sc: number) => {
-      ctx.strokeStyle = '#fff'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc((px[0] + 0.5) * sc, (px[1] + 0.5) * sc, 7, 0, Math.PI * 2)
-      ctx.stroke()
-    },
-    [px],
-  )
-  const dica: Partial<Record<ColorPlane, string>> = {
-    H: 'Matiz em cores falsas: a folha fica toda da mesma "faixa" mesmo onde há sombra. As lesões marrons caem em outra faixa.',
-    'a*': 'Eixo verde ↔ vermelho. Verde é escuro aqui (a* negativo). Lesões e solo ficam claros. Um limiar nesse canal já separa muita coisa.',
-    V: 'Brilho puro. Sombra e luz dominam este canal, por isso ele é ruim para separar planta de solo.',
-    S: 'Saturação: quão "pura" é a cor. Palha e fundo cinza têm S baixa.',
-    G: 'O canal verde sozinho engana: solo claro também tem G alto.',
-  }
-  return (
-    <Lab n="1.3" title="A mesma folha em 10 canais" desc="Escolha um canal e clique na imagem para ler o pixel nos três espaços de cor. Qual canal separa melhor a lesão do tecido sadio?">
-      <SourcePicker {...src.pickerProps} />
-      <Seg value={pl} options={PLANES} onChange={setPl} label="canal" />
-      <div className="lab-cols">
-        <div className="panel">
-          <div className="panel-t">
-            <span>original</span>
-            <span>clique para ler um pixel</span>
-          </div>
-          <ImgCanvas img={img} overlay={overlay} onClickPixel={(x, y) => setPick([x, y])} label="imagem original" />
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>canal {pl}</span>
-            <span>{pl === 'H' ? 'cores = matiz' : 'claro = valor alto'}</span>
-          </div>
-          <ImgCanvas img={g} lut={pl === 'H' ? hueLUT : undefined} overlay={overlay} onClickPixel={(x, y) => setPick([x, y])} label={`canal ${pl}`} />
-        </div>
-      </div>
-      <div className="lab-cols">
-        <div className="panel">
-          <div className="panel-t">
-            <span>histograma do canal {pl}</span>
-          </div>
-          <Histogram data={hist} color="var(--sky)" />
-          {dica[pl] && <p className="note">{dica[pl]}</p>}
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>pixel ({px[0]}, {px[1]})</span>
-          </div>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
-            <div style={{ width: 56, borderRadius: 8, background: rgbStr(c), border: '1px solid var(--rule)' }} />
-            <div className="readout" style={{ flex: 1 }}>
-              RGB&nbsp; {c.map((v) => Math.round(v)).join(', ')}
-              <br />
-              HSV&nbsp; {h.toFixed(0)}°, {(s * 100).toFixed(0)}%, {(v * 100).toFixed(0)}%
-              <br />
-              L*a*b* {L.toFixed(0)}, {A.toFixed(0)}, {B.toFixed(0)}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Lab>
-  )
-}
-
-/* ============ conteúdo ============ */
-
-const CODE_1 = `# Aula 1 · a imagem é uma matriz
-import numpy as np
-import matplotlib.pyplot as plt
-from skimage import io, color
-from google.colab import files
-
-nome = list(files.upload().keys())[0]     # envie uma foto de folha ou de lavoura
-img = io.imread(nome)[..., :3]            # descarta o canal alfa, se existir
-print(img.shape, img.dtype)               # (altura, largura, 3) uint8
-print("pixel (linha 100, coluna 50):", img[100, 50])   # [R G B]
-
-hsv = color.rgb2hsv(img)                  # H, S e V entre 0 e 1
-lab = color.rgb2lab(img)                  # L* de 0 a 100; a* e b* negativos e positivos
-
-fig, ax = plt.subplots(1, 4, figsize=(16, 4))
-ax[0].imshow(img); ax[0].set_title("RGB")
-ax[1].imshow(hsv[..., 0], cmap="hsv"); ax[1].set_title("H (matiz)")
-ax[2].imshow(lab[..., 1], cmap="RdYlGn_r"); ax[2].set_title("a*  (verde <-> vermelho)")
-ax[3].hist(img[..., 1].ravel(), bins=256, color="green"); ax[3].set_title("histograma do G")
-for a in ax[:3]: a.axis("off")
-plt.show()
-
-# quantização: quantos níveis você aguenta perder?
-for bits in [8, 4, 2, 1]:
-    passo = 256 // 2**bits
-    q = (img // passo) * passo
-    print(bits, "bits ->", len(np.unique(q[..., 1])), "tons de verde")`
-
-const CODE_GSD = `# GSD: quantos centímetros de chão cabem em 1 pixel
-def gsd_cm(altura_m, sensor_mm=13.2, focal_mm=8.8, largura_px=5472):
-    return altura_m * 100 * sensor_mm / (focal_mm * largura_px)
-
-for h in [30, 60, 90, 120]:
-    print(f"{h:>4} m -> {gsd_cm(h):.2f} cm/px")`
+import type { Aula } from '../curso'
+import { Fig } from '../curso'
+import { Callout, Caso, Code, Term } from '../ui'
+import { LabConversor, LabIoU, LabNMS, LabSplit } from '../labs'
 
 export const aula1: Aula = {
   id: 'aula1',
   n: 1,
-  trilha: 'grad',
-  titulo: 'A lavoura vira uma planilha',
-  ideia: 'O computador não vê folha nem soja. Ele vê uma tabela de números, e tudo o que faremos no semestre é conta em cima dessa tabela.',
-  ementa: ['Aquisição de imagens', 'Amostragem e quantização', 'Espaços de cor', 'Histograma'],
-  labs: ['Lupa de pixels', 'Altura de voo e GSD', '10 canais de cor', 'Caso real: tomates'],
-  cor: ['#6aa84f', '#b3861a', '#9a4a2c', '#2d6a8a'],
+  titulo: 'Fundamentos de detecção e engenharia de dados',
+  ideia: 'Antes de treinar qualquer rede, é preciso saber que pergunta ela responde, como a resposta é escrita e como medir se ela acertou. O resto é dado bem anotado e bem dividido.',
+  chips: ['PDI clássico × aprendizado profundo', 'classificar, detectar, segmentar', 'R-CNN, U-Net, YOLO', 'xyxy, COCO, YOLO', 'IoU e NMS', 'GSD', 'CVAT', 'divisão por grupo'],
   objetivos: [
-    'Explicar uma imagem digital como a função f(x, y) amostrada e quantizada.',
-    'Calcular o GSD de um voo de drone e decidir a altura certa para um objetivo agronômico.',
-    'Converter entre RGB, HSV e L*a*b* e justificar qual espaço usar para separar planta, solo e lesão.',
-    'Ler um histograma e dizer o que ele mostra e o que ele esconde.',
-    'Reproduzir o classificador de maturação de tomate de um artigo e achar o erro de unidade que ele esconde.',
+    'Distinguir classificação, detecção, segmentação semântica e de instâncias, e escolher a tarefa certa para um problema do campo.',
+    'Explicar a diferença entre detectores de dois estágios (R-CNN) e de um estágio (YOLO), e para que serve a U-Net.',
+    'Converter caixas entre xyxy, COCO e o formato YOLO normalizado.',
+    'Calcular IoU à mão e explicar o papel dos limiares de confiança e do NMS.',
+    'Escrever um guia de anotação, anotar no CVAT e auditar os rótulos exportados.',
+    'Dividir um banco de imagens por grupo de coleta sem vazamento entre treino, validação e teste.',
   ],
-  roteiro: [
-    { t: 'Gancho: quantos números tem uma foto?', min: 5, tipo: 'gancho' },
-    { t: 'Imagem como matriz + Lab 1.1', min: 10, tipo: 'conceito' },
-    { t: 'Aquisição e GSD + Lab 1.2', min: 12, tipo: 'lab' },
-    { t: 'Espaços de cor', min: 7, tipo: 'conceito' },
-    { t: 'Lab 1.3', min: 9, tipo: 'lab' },
-    { t: 'Caso real: tomates + Lab 1.4', min: 10, tipo: 'lab' },
-    { t: 'Fechamento + quiz', min: 7, tipo: 'fecho' },
-  ],
-  secoes: [
+  intervaloDepois: 'b13',
+  notebook: {
+    nome: 'Aula1_Anotacao_Auditoria_Split.ipynb',
+    arquivo: 'Aula1_Anotacao_Auditoria_Split.ipynb',
+    descricao: 'Baixa o WGISD (Embrapa), roda um YOLO pré-treinado, calcula IoU e NMS à mão, audita rótulos e divide por variedade.',
+  },
+  blocos: [
+    /* ------------------------------------------------------------ 1.1 */
     {
-      id: 'a1-gancho',
-      titulo: 'Quantos números tem uma foto?',
-      min: 5,
-      body: (
-        <div className="prose">
+      id: 'b11',
+      cod: '1.1',
+      titulo: 'Do PDI clássico às tarefas de visão',
+      min: 25,
+      tipo: 'conceito',
+      slides: [
+        { titulo: 'O pipeline que vocês já conhecem', img: 'pipeline_classico', legenda: 'CWFID: cenoura e daninhas fotografadas em campo', pontos: ['Aquisição → realce → segmentação → rotulação → descritores', 'Cada etapa é uma regra escrita por uma pessoa', 'Funciona quando o problema é "verde contra marrom"'] },
+        { titulo: 'A mesma regra num vinhedo', img: 'classico_falha', pontos: ['ExG + Otsu acha folha, não acha cacho de uva verde', 'Trocar de lavoura obriga a reescrever a regra', 'A rede profunda aprende a regra a partir de exemplos'] },
+        { titulo: 'Quatro perguntas diferentes sobre a mesma foto', img: 'quatro_tarefas', legenda: 'WGISD, Chardonnay: anotação real de caixas e máscaras', pontos: ['Classificação: o que tem na foto?', 'Detecção: onde está e quantos são?', 'Semântica: qual pixel é uva?', 'Instâncias: qual pixel é de qual cacho?'] },
+      ],
+      teoria: (
+        <>
           <p>
-            Comece a aula com uma pergunta simples: <b>uma foto de celular de 12 megapixels tem quantos números dentro dela?</b> Deixe a turma chutar. A resposta é 36 milhões: 12 milhões de pixels, cada um
-            com três valores (vermelho, verde e azul).
+            Até agora, na disciplina, toda decisão era escrita à mão: qual canal de cor usar, qual limiar, qual tamanho de elemento estruturante. O pipeline clássico de PDI é{' '}
+            <b>aquisição → pré-processamento → segmentação → extração de descritores → classificação</b>. Ele é rápido, explicável e funciona muito bem quando o contraste é simples.
           </p>
           <p>
-            Agora imagine um drone que tira 2.000 fotos por voo sobre um talhão de soja. Isso passa de 70 bilhões de números. Ninguém olha isso a olho. É aí que entra o processamento digital de imagens:
-            transformar essa montanha de números em uma resposta que o produtor entende, como <i>"a mancha de estresse ocupa 3,2 ha no canto norte"</i>.
+            O aprendizado profundo troca a regra escrita por <b>exemplos rotulados</b>. A rede aprende sozinha os filtros (a Aula 2 mostra que eles são parentes dos kernels de Sobel e Laplaciano) e a regra de
+            decisão. O preço é outro: agora a qualidade do modelo é a qualidade dos dados.
           </p>
-          <Callout kind="prof">
-            <p>
-              Peça para cada aluno abrir a câmera do celular e olhar a resolução nas configurações. Anote na lousa os valores. Serve de gancho para o cálculo do GSD daqui a pouco.
-            </p>
-          </Callout>
-        </div>
+          <p>Antes de escolher a rede, escolha a pergunta. São quatro tarefas, cada uma com uma saída e um custo de anotação diferentes:</p>
+          <table className="tbl">
+            <thead><tr><th>tarefa</th><th>saída</th><th>custo de anotar</th><th>exemplo no campo</th></tr></thead>
+            <tbody>
+              <tr><td>classificação</td><td>um rótulo por imagem</td><td>segundos</td><td>folha sadia ou doente</td></tr>
+              <tr><td>detecção</td><td>caixas + classe + confiança</td><td>1 a 2 min por foto</td><td>contar cachos, bois, espigas</td></tr>
+              <tr><td>segmentação semântica</td><td>classe por pixel</td><td>5 a 15 min por foto</td><td>área de daninha no talhão</td></tr>
+              <tr><td>segmentação de instâncias</td><td>máscara por objeto</td><td>o mais caro</td><td>tamanho de cada cacho</td></tr>
+            </tbody>
+          </table>
+        </>
       ),
-    },
-    {
-      id: 'a1-matriz',
-      titulo: 'A imagem é uma função f(x, y)',
-      min: 10,
-      body: (
-        <div className="prose">
-          <p>
-            Gonzalez e Woods definem a imagem como uma função bidimensional <code>f(x, y)</code>, em que <code>x</code> e <code>y</code> são coordenadas espaciais e o valor de <code>f</code> é a
-            intensidade naquele ponto. Ela vira <b>digital</b> quando fazemos duas discretizações:
-          </p>
-          <ol>
-            <li>
-              <b>
-                <Term def="Discretizar as coordenadas: decidir em quantos pontos (pixels) o mundo contínuo vai ser dividido. Define a resolução espacial.">Amostragem</Term>
-              </b>
-              : quantos pixels usamos para cobrir a cena (resolução espacial).
-            </li>
-            <li>
-              <b>
-                <Term def="Discretizar a intensidade: decidir quantos níveis de valor cada pixel pode assumir. Com 8 bits, são 256 níveis (0 a 255).">Quantização</Term>
-              </b>
-              : quantos níveis de intensidade cada pixel pode ter (resolução radiométrica).
-            </li>
-          </ol>
-          <Callout kind="analogia">
-            <p>
-              Pense numa planilha de Excel. Cada célula é um pixel e guarda um número de 0 a 255. Uma imagem em tons de cinza é <b>uma</b> planilha. Uma imagem colorida são <b>três planilhas
-              empilhadas</b>, uma para o vermelho, uma para o verde e uma para o azul. Quando alguém disser "canal G", pense "a aba verde da planilha".
-            </p>
-          </Callout>
-          <p>
-            Por convenção, a origem fica no <b>canto superior esquerdo</b>, e em Python acessamos <code>img[linha, coluna]</code>, ou seja, <code>img[y, x]</code>. Essa inversão confunde todo mundo
-            pelo menos uma vez no semestre.
-          </p>
-          <LupaPixels />
-        </div>
-      ),
-    },
-    {
-      id: 'a1-aquisicao',
-      titulo: 'Do sensor ao pixel: aquisição',
-      min: 12,
-      body: (
-        <div className="prose">
-          <p>
-            O sensor da câmera só mede <b>quanta luz chegou</b> em cada fotossítio. Ele não sabe a cor. Para ter cor, existe um mosaico de filtros na frente do sensor, o{' '}
-            <Term def="Padrão de filtros coloridos em cima do sensor: em cada bloco 2×2 há um filtro vermelho, um azul e dois verdes (RGGB). A câmera depois interpola as cores que faltam em cada pixel (demosaicing).">
-              filtro de Bayer
-            </Term>
-            , com o dobro de filtros verdes em relação a vermelhos e azuis. Curiosidade que ajuda a lembrar: a câmera comum já nasce com mais sensibilidade ao verde, igualzinho ao nosso olho.
-          </p>
-          <h3>GSD: o número mais importante de um voo</h3>
-          <p>
-            No agro, a pergunta prática da amostragem é: <b>quantos centímetros de chão cabem em um pixel?</b> Isso se chama{' '}
-            <Term def="Ground Sample Distance: a distância no terreno entre os centros de dois pixels vizinhos. GSD de 2 cm/px significa que cada pixel cobre um quadrado de 2 × 2 cm no chão.">GSD</Term>. Ele
-            cresce em linha reta com a altura de voo. Dobrou a altura, dobrou o GSD, e cada pixel passa a cobrir quatro vezes mais área.
-          </p>
+      exemplo: (
+        <>
+          <Fig n="pipeline_classico" cap="Pipeline clássico numa foto real do CWFID (Haug e Ostermann, 2014): o índice ExG e o limiar de Otsu separam planta de solo e a rotulação conta os objetos." />
+          <Fig n="classico_falha" cap="A mesma regra aplicada ao WGISD (Santos et al., 2020). O cacho de uva verde tem a mesma cor da folha: a regra falha e não há limiar que salve." />
+          <Fig n="quatro_tarefas" cap="Uma foto do WGISD, quatro tarefas. As caixas e máscaras são as anotações reais do banco." />
           <Callout kind="campo">
-            <p>
-              Uma regra prática: para detectar um objeto com confiança, ele precisa ocupar pelo menos alguns pixels de lado. Uma plântula daninha de 2 cm pede GSD bem abaixo de 1 cm/px. Já para ver a
-              mancha de estresse de um talhão inteiro, 5 cm/px ou até imagem de satélite resolvem. No Brasil, o teto usual para drones é 120 m acima do solo, então altura também tem limite legal.
-            </p>
+            <p>Quer saber quantos cachos tem na fileira para estimar produção? Detecção basta. Quer o volume de cada cacho? Aí precisa de instâncias, e o custo de anotar multiplica por dez.</p>
           </Callout>
-          <Amostragem />
-          <Code code={CODE_GSD} />
-          <p>
-            Repare no painel da direita: diminuir a altura melhora o GSD, mas o número de fotos cresce com o quadrado. Voar a 20 m em vez de 40 m quadruplica fotos, bateria e tempo de processamento. Não
-            existe altura "certa", existe altura certa <b>para uma pergunta</b>.
-          </p>
-        </div>
+        </>
       ),
-    },
-    {
-      id: 'a1-cor',
-      titulo: 'Espaços de cor: RGB, HSV e L*a*b*',
-      min: 16,
-      body: (
-        <div className="prose">
-          <p>
-            RGB é o jeito como a câmera grava, mas mistura duas coisas numa só: <b>que cor é</b> e <b>quanta luz tem</b>. Uma folha ao sol e a mesma folha à sombra têm valores RGB bem diferentes. Por isso
-            existem outros espaços:
-          </p>
-          <ul>
-            <li>
-              <b>HSV</b>: separa a matiz (H, o "nome" da cor, em graus de 0 a 360), a saturação (S, quão pura) e o valor (V, o brilho). Sombra mexe muito em V e pouco em H.
-            </li>
-            <li>
-              <b>L*a*b*</b>: pensado para ser perceptualmente uniforme. L* é a luminosidade, a* vai do verde (negativo) ao vermelho (positivo) e b* do azul ao amarelo. Para agro, o a* é quase um
-              "detector de verde" pronto.
-            </li>
-          </ul>
-          <Callout kind="analogia">
-            <p>
-              RGB é a receita do pintor (quanto de cada tinta). HSV é como a gente descreve a cor falando: "um verde meio apagado e escuro". Por isso HSV é mais fácil de usar em regra de decisão.
-            </p>
-          </Callout>
-          <EspacosDeCor />
-          <Callout kind="pegadinha">
-            <p>
-              <b>1.</b> A matiz é circular: 0° e 359° são o mesmo vermelho. Tirar a média de H de pixels avermelhados dá um valor verde no meio do caminho, e errado.
-            </p>
-            <p>
-              <b>2.</b> O OpenCV lê imagens em ordem <b>BGR</b>, não RGB, e guarda H de 0 a 179 (metade dos graus) para caber em 8 bits. O scikit-image usa RGB e H de 0 a 1. Sempre confira a
-              documentação antes de copiar um limiar de um artigo.
-            </p>
-          </Callout>
-          <h3>O histograma</h3>
-          <p>
-            O histograma conta quantos pixels existem em cada nível de intensidade. Ele mostra contraste, exposição e, muitas vezes, se dá para separar dois grupos com um corte só (dois "morros" bem
-            separados). Ele <b>não</b> mostra onde os pixels estão: uma folha com uma lesão grande e uma folha com cem lesões pequenas podem ter o mesmo histograma.
-          </p>
-        </div>
-      ),
-    },
-    secaoTomate,
-    {
-      id: 'a1-fecho',
-      titulo: 'Pra levar pra casa',
-      min: 7,
-      body: (
-        <div className="prose">
+      pratica: (
+        <>
+          <p><b>Dinâmica em duplas (8 min).</b> Para cada problema abaixo, escolham a tarefa e justifiquem pelo custo de anotação:</p>
           <ol>
-            <li>Imagem digital é uma matriz de números: amostrada no espaço (pixels) e quantizada na intensidade (bits).</li>
-            <li>No campo, a amostragem se decide pelo GSD, que depende da altura, do sensor e da lente. A escolha vem da pergunta agronômica.</li>
-            <li>RGB mistura cor e iluminação. HSV e L*a*b* separam as duas coisas e deixam a segmentação mais robusta à sombra.</li>
+            <li>Contar frangos mortos num aviário por câmera no teto.</li>
+            <li>Medir a porcentagem de área foliar com ferrugem na soja.</li>
+            <li>Separar grãos de café em "bom" e "defeituoso" numa esteira, um grão por foto.</li>
+            <li>Guiar um pulverizador que aplica herbicida só em cima da daninha.</li>
           </ol>
-          <Code code={CODE_1} />
-        </div>
+          <Callout kind="prof"><p>Respostas esperadas: detecção, semântica, classificação, semântica ou instâncias (depende do bico). O ponto não é acertar: é perceber que a saída define o rótulo, e o rótulo define o orçamento.</p></Callout>
+        </>
       ),
     },
+    /* ------------------------------------------------------------ 1.2 */
+    {
+      id: 'b12',
+      cod: '1.2',
+      titulo: 'Arquiteturas e formatos de anotação',
+      min: 50,
+      tipo: 'conceito',
+      slides: [
+        { titulo: 'Dois estágios contra um estágio', img: 'rcnn_vs_yolo', pontos: ['R-CNN: propõe regiões, depois classifica cada uma (lento, preciso)', 'YOLO: uma passada pela rede prevê tudo (rápido)', 'Hoje a diferença de precisão é pequena; a de velocidade continua grande'] },
+        { titulo: 'U-Net: uma resposta por pixel', img: 'unet_cwfid', pontos: ['Codificador reduz a imagem e entende o contexto', 'Decodificador volta ao tamanho original', 'Conexões de atalho devolvem o detalhe da borda'] },
+        { titulo: 'Como o YOLO divide a imagem', img: 'grade_yolo', pontos: ['Backbone extrai características', 'Neck mistura escalas (objetos grandes e pequenos)', 'Heads preveem caixa, classe e confiança em cada célula'] },
+        { titulo: 'A mesma caixa, três formatos', img: 'formatos_caixa', formula: <>YOLO: x<sub>c</sub> = (x₁+x₂)/2W · y<sub>c</sub> = (y₁+y₂)/2H · w = (x₂−x₁)/W · h = (y₂−y₁)/H</> },
+      ],
+      teoria: (
+        <>
+          <p>
+            <b>Detectores de dois estágios</b> (família R-CNN, Girshick et al., 2014) primeiro propõem algumas centenas ou milhares de regiões candidatas e depois passam cada região por uma CNN que
+            classifica e ajusta a caixa. O Faster R-CNN trocou a busca seletiva por uma rede de propostas, mas a ideia de dois passos continua.
+          </p>
+          <p>
+            <b>Detectores de um estágio</b> (YOLO, Redmon et al., 2016) olham a imagem uma única vez: a rede divide a imagem numa grade e, em cada célula, prevê caixas, classe e confiança. Um YOLO
+            moderno tem três partes:
+          </p>
+          <ol>
+            <li><b>Backbone</b>: a CNN que transforma pixels em mapas de características (o "olho").</li>
+            <li><b>Neck</b>: combina mapas de resoluções diferentes, para enxergar cacho grande e baga pequena (P3, P4, P5).</li>
+            <li><b>Heads</b>: em cada posição de cada mapa, devolvem a caixa, a classe e a confiança.</li>
+          </ol>
+          <p>
+            A <b>U-Net</b> (Ronneberger et al., 2015) é a referência para segmentação: um codificador que encolhe a imagem e um decodificador que volta ao tamanho original, com{' '}
+            <Term def="ligações que copiam os mapas do codificador direto para o decodificador, para recuperar o detalhe espacial perdido na redução">conexões de atalho</Term> entre os dois lados.
+          </p>
+          <p><b>Formatos de caixa.</b> O mesmo retângulo aparece escrito de três jeitos, e confundir um com o outro é o erro mais comum do primeiro treino:</p>
+          <ol>
+            <li><b>xyxy</b> (Pascal VOC, OpenCV): canto superior esquerdo e canto inferior direito, em pixels.</li>
+            <li><b>COCO</b>: canto superior esquerdo, largura e altura, em pixels.</li>
+            <li><b>YOLO</b>: um arquivo <code>.txt</code> por imagem, uma linha por objeto: <code>classe x_centro y_centro largura altura</code>, tudo dividido pelo tamanho da imagem (entre 0 e 1).</li>
+          </ol>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="rcnn_vs_yolo" cap="À esquerda, as regiões candidatas que o primeiro estágio do R-CNN gera nesta foto real (busca seletiva do OpenCV). À direita, a grade do YOLO e as caixas anotadas no WGISD." />
+          <Fig n="unet_cwfid" cap="A saída que uma U-Net aprende no CWFID: cada pixel vira cenoura, daninha ou fundo. Rótulos reais do banco." />
+          <Fig n="grade_yolo" cap="Grade 8×8 sobre um vinhedo de Sauvignon Blanc. A célula azul contém o centro do cacho e é a responsável por prevê-lo." />
+          <Fig n="formatos_caixa" cap="Um cacho de Cabernet Franc com a caixa escrita nos três formatos. Confira a conta no conversor abaixo." />
+          <Callout kind="pegadinha">
+            <p>No YOLO a coordenada é do <b>centro</b>, não do canto. Se você exportar xyxy normalizado e chamar de YOLO, o treino roda sem erro e o mAP fica perto de zero.</p>
+          </Callout>
+        </>
+      ),
+      pratica: (
+        <>
+          <p><b>No quadro (10 min).</b> Numa imagem de 1280 × 720, um boi ocupa de (400, 200) até (560, 330). Escreva a caixa em COCO e em YOLO, classe 0. Depois confira no conversor.</p>
+          <LabConversor />
+          <Code title="Python · conversão" code={`def xyxy_para_yolo(x1, y1, x2, y2, W, H):
+    return ((x1 + x2) / 2 / W, (y1 + y2) / 2 / H, (x2 - x1) / W, (y2 - y1) / H)
+
+def yolo_para_xyxy(xc, yc, w, h, W, H):
+    return ((xc - w / 2) * W, (yc - h / 2) * H, (xc + w / 2) * W, (yc + h / 2) * H)
+
+print(xyxy_para_yolo(400, 200, 560, 330, 1280, 720))   # (0.375, 0.3681, 0.125, 0.1806)`} />
+        </>
+      ),
+    },
+    /* ------------------------------------------------------------ 1.3 */
+    {
+      id: 'b13',
+      cod: '1.3',
+      titulo: 'IoU, NMS, GSD e primeira inferência',
+      min: 35,
+      tipo: 'conceito',
+      slides: [
+        { titulo: 'IoU: quanto as caixas concordam', img: 'iou_exemplos', formula: <>IoU = área(A ∩ B) / área(A ∪ B)</>, pontos: ['1 = idênticas, 0 = sem contato', 'Acerto (TP) se IoU ≥ limiar, em geral 0,5'] },
+        { titulo: 'Objeto pequeno sofre mais', img: 'iou_pequeno', pontos: ['O mesmo erro de 10 px custa pouco num cacho e tudo numa baga', 'Por isso a resolução (GSD) importa tanto'] },
+        { titulo: 'NMS: uma caixa por objeto', img: 'nms_antes_depois', pontos: ['1. descarta caixas com confiança < conf', '2. ordena pela confiança', '3. mantém a melhor e apaga as que têm IoU > iou com ela', '4. repete'] },
+        { titulo: 'GSD: quantos centímetros cabem num pixel', img: 'gsd_resolucao', formula: <>GSD = (altura de voo × tamanho do pixel do sensor) / distância focal</> },
+      ],
+      teoria: (
+        <>
+          <p>
+            <b>IoU</b> (intersection over union) mede a concordância entre duas caixas: a área de interseção dividida pela área da união. É com ele que se decide se uma caixa prevista "acertou" a
+            caixa anotada. O limiar mais usado é 0,5 (o "50" do mAP50).
+          </p>
+          <p>
+            A rede devolve muitas caixas por objeto, todas um pouco deslocadas. O <b>NMS</b> (non maximum suppression) limpa essa saída: ordena pela confiança, mantém a melhor, apaga as que se sobrepõem
+            a ela acima de um limiar de IoU e repete. Dois botões mandam no resultado:
+          </p>
+          <ol>
+            <li><code>conf</code>: confiança mínima. Alto demais perde objeto (falso negativo); baixo demais aceita sujeira (falso positivo).</li>
+            <li><code>iou</code> do NMS: alto demais deixa duplicatas; baixo demais apaga cachos encostados que são objetos diferentes.</li>
+          </ol>
+          <p>
+            <b>GSD</b> (ground sample distance) é o tamanho no chão de um pixel. Com um drone a 30 m e GSD de 1 cm, um cacho de 15 cm tem 15 pixels. Subir para 120 m deixa o mesmo cacho com 4 pixels,
+            e aí nenhuma rede encontra. O YOLO26 e alguns modelos recentes dispensam o NMS na saída, mas o conceito continua no centro da avaliação.
+          </p>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="iou_exemplos" cap="Três caixas previstas sobre o mesmo cacho do WGISD. Só a primeira passa no limiar de 0,5." />
+          <Fig n="iou_pequeno" cap="O mesmo deslocamento de 10 px num objeto de 200 px e num de 24 px." />
+          <Fig n="nms_antes_depois" cap="Saída bruta de um detector (simulada sobre os cachos reais anotados) antes e depois do limiar de confiança e do NMS." />
+          <Fig n="gsd_resolucao" cap="O mesmo cacho reduzido 4, 8 e 16 vezes: é o que acontece ao subir o drone ou ao treinar com imgsz pequeno." />
+        </>
+      ),
+      pratica: (
+        <>
+          <p><b>À mão (5 min).</b> Caixa real (100, 100, 200, 200), prevista (150, 120, 250, 220). Calcule o IoU. (Resposta: interseção 50 × 80 = 4000; união 10000 + 10000 − 4000 = 16000; IoU = 0,25.)</p>
+          <LabIoU />
+          <LabNMS />
+          <p><b>No Colab (10 min).</b> Primeira inferência com um modelo pré-treinado no COCO sobre uma foto do WGISD. O COCO não tem a classe "uva": observe o que o modelo inventa e com que confiança.</p>
+          <Code code={`!pip -q install ultralytics
+!wget -q https://raw.githubusercontent.com/thsant/wgisd/master/data/CDY_2017.jpg
+from ultralytics import YOLO
+modelo = YOLO("yolo11n.pt")            # pesos do COCO: 80 classes, nenhuma é uva
+r = modelo.predict("CDY_2017.jpg", conf=0.25, iou=0.5)[0]
+for c, s, b in zip(r.boxes.cls, r.boxes.conf, r.boxes.xyxy):
+    print(modelo.names[int(c)], round(float(s), 2), b.round().tolist())
+r.show()`} />
+          <Callout kind="prof"><p>O modelo costuma achar "broccoli", "apple" ou nada. Use isso para abrir o intervalo: por que precisamos anotar o nosso próprio banco?</p></Callout>
+        </>
+      ),
+    },
+    /* ------------------------------------------------------------ 1.4 */
+    {
+      id: 'b14',
+      cod: '1.4',
+      titulo: 'Engenharia de anotação no CVAT',
+      min: 45,
+      tipo: 'conceito',
+      slides: [
+        { titulo: 'Três pessoas, três verdades', img: 'ambiguidade_anotacao', pontos: ['Caixa justa ou folgada?', 'Cacho encostado é um objeto ou dois?', 'Cacho cortado pela borda entra?', 'Sem guia de anotação, o modelo aprende a média das dúvidas'] },
+        { titulo: 'Guia de anotação da turma', pontos: ['Definição de cada classe com 2 fotos de exemplo', 'Regra de borda: caixa justa no contorno visível', 'Oclusão: anota se ≥ 30% visível', 'Objetos encostados: uma caixa por objeto', 'Casos-limite registrados com print'] },
+        { titulo: 'CVAT: projeto → tarefa → job', pontos: ['Projeto guarda as classes (labels)', 'Tarefa recebe as imagens e é dividida em jobs', 'Cada job tem anotador e revisor', 'Export: "Ultralytics YOLO Detection" ou "YOLO 1.1"'] },
+      ],
+      teoria: (
+        <>
+          <p>
+            Anotar é medir, e toda medida precisa de protocolo. Dois anotadores sem regra comum produzem caixas diferentes para o mesmo cacho, e a rede aprende essa incerteza. O resultado aparece como
+            teto de mAP que nenhum hiperparâmetro sobe.
+          </p>
+          <p>Um <b>guia de anotação</b> responde, com exemplos visuais, pelo menos:</p>
+          <ol>
+            <li>O que é cada classe e o que <i>não</i> é (cacho de uva × folha seca × sombra).</li>
+            <li>Onde a caixa encosta: no contorno visível, sem folga.</li>
+            <li>O que fazer com objeto ocluído, cortado pela borda, borrado ou muito pequeno.</li>
+            <li>Objetos encostados: um por caixa, mesmo quando é difícil separar.</li>
+          </ol>
+          <p>
+            No <b>CVAT</b> (cvat.ai), o trabalho se organiza em <b>projeto</b> (onde ficam as classes), <b>tarefa</b> (um lote de imagens) e <b>job</b> (a fatia de um anotador). Ferramentas úteis: retângulo
+            (detecção), polígono e pincel (segmentação), tag (classificação) e a interpolação entre quadros para vídeo. A exportação escolhe o formato; para o Ultralytics, use "Ultralytics YOLO
+            Detection" ou "YOLO 1.1" e confira a versão do CVAT antes da aula.
+          </p>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="ambiguidade_anotacao" cap="Três critérios diferentes na mesma foto do WGISD. O anotador A segue o guia do banco original; B e C são os erros mais comuns em turma." />
+          <Callout kind="campo"><p>O WGISD foi anotado por especialistas da Embrapa com regra explícita para cachos ocluídos e encostados. Leia a seção de anotação do artigo de Santos et al. (2020) antes de escrever o guia da dupla.</p></Callout>
+        </>
+      ),
+      pratica: (
+        <>
+          <ol>
+            <li><b>Rodada cega (10 min).</b> Cada um anota as mesmas 3 fotos no CVAT, sem combinar nada.</li>
+            <li><b>Comparação (10 min).</b> Projetar as anotações lado a lado. Onde divergiram?</li>
+            <li><b>Guia da turma (15 min).</b> Escrever juntos as regras e colar 1 print de cada caso-limite.</li>
+            <li><b>Demonstração (10 min).</b> Criar projeto, tarefa e job no CVAT; exportar e abrir o zip.</li>
+          </ol>
+          <Code title="estrutura esperada depois do export" code={`dataset/
+  data.yaml           # path, train, val, test, names
+  images/train/*.jpg
+  images/val/*.jpg
+  labels/train/*.txt  # um por imagem, mesmo nome
+  labels/val/*.txt`} />
+        </>
+      ),
+    },
+    /* ------------------------------------------------------------ 1.5 */
+    {
+      id: 'b15',
+      cod: '1.5',
+      titulo: 'Laboratório 1: anotação, auditoria e divisão segura',
+      min: 50,
+      tipo: 'lab',
+      slides: [
+        { titulo: 'Auditar antes de treinar', img: 'auditoria_rotulos', pontos: ['Toda imagem tem .txt? Todo .txt tem imagem?', 'Classe existe no data.yaml?', 'Coordenadas entre 0 e 1, largura e altura > 0?', 'Caixas duplicadas (IoU > 0,9 na mesma imagem)?'] },
+        { titulo: 'Dividir por grupo, não por foto', img: 'split_por_grupo', pontos: ['Fotos do mesmo voo, dia ou talhão são quase cópias', 'Se caem em treino e teste, a nota do teste mente', 'Regra: o grupo inteiro vai para um só conjunto'] },
+      ],
+      teoria: (
+        <>
+          <p>
+            Um banco anotado tem erros, sempre. A <b>auditoria</b> procura os que quebram o treino em silêncio: imagem sem rótulo, rótulo sem imagem, classe que não existe, coordenada fora de [0, 1],
+            caixa de largura zero e duplicatas.
+          </p>
+          <p>
+            O erro metodológico mais grave, porém, é o <b>vazamento</b>. Fotos tiradas em sequência no mesmo voo, ou do mesmo talhão no mesmo dia, são quase iguais. Se a divisão é aleatória por foto,
+            irmãs gêmeas caem no treino e no teste, e o modelo é avaliado em imagens que, na prática, já viu. A solução é dividir por <b>grupo de coleta</b>: voo, dia, talhão, propriedade ou variedade.
+          </p>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="auditoria_rotulos" cap="Três erros inseridos de propósito numa foto do WGISD: uma duplicata, uma classe inexistente e uma caixa que sai da imagem." />
+          <Fig n="split_por_grupo" cap="Fotos reais das cinco variedades do WGISD. Na divisão por grupo, cada variedade inteira vai para treino, validação ou teste." />
+          <LabSplit />
+        </>
+      ),
+      pratica: (
+        <>
+          <p>Em duplas, no notebook da aula (seções 4 a 6):</p>
+          <ol>
+            <li>Anotar 15 fotos novas no CVAT seguindo o guia da turma, com revisão cruzada pela outra dupla.</li>
+            <li>Rodar o auditor de rótulos no export e corrigir o que ele apontar.</li>
+            <li>Dividir por variedade (ou pelo grupo que a dupla escolher) e provar, com código, que nenhum grupo aparece em dois conjuntos.</li>
+          </ol>
+          <Code code={`import glob, os, yaml
+def auditar(pasta, n_classes):
+    problemas = []
+    imgs = {os.path.splitext(os.path.basename(f))[0] for f in glob.glob(f"{pasta}/images/*/*")}
+    rots = {os.path.splitext(os.path.basename(f))[0]: f for f in glob.glob(f"{pasta}/labels/*/*.txt")}
+    problemas += [("sem rótulo", i) for i in imgs - rots.keys()]
+    problemas += [("sem imagem", r) for r in rots.keys() - imgs]
+    for nome, f in rots.items():
+        for k, linha in enumerate(open(f)):
+            c, *v = linha.split()
+            v = list(map(float, v))
+            if not 0 <= int(c) < n_classes: problemas.append(("classe inválida", nome, k))
+            if any(x < 0 or x > 1 for x in v): problemas.append(("fora de [0,1]", nome, k))
+            if v[2] <= 0 or v[3] <= 0: problemas.append(("caixa vazia", nome, k))
+    return problemas`} />
+        </>
+      ),
+    },
+    /* ------------------------------------------------------------ 1.6 */
+    {
+      id: 'b16',
+      cod: '1.6',
+      titulo: 'Leitura crítica de artigo',
+      min: 15,
+      tipo: 'leitura',
+      slides: [
+        { titulo: 'Leitura em formato de banca', pontos: ['Leal et al. (ENIAC 2024): gado contado por drone no Piauí', 'O aumento de dados veio antes ou depois da divisão?', 'Frames do mesmo vídeo ficaram em lados diferentes?', '"mAP" com qual limiar de IoU?', 'Revocação de 90% num rebanho de 500 cabeças: quantos ficam de fora?'] },
+      ],
+      teoria: (
+        <p>
+          Ler um artigo de visão computacional é procurar três coisas: <b>como os dados foram divididos</b>, <b>qual métrica foi reportada e com que limiar</b>, e <b>se o teste representa o uso real</b>.
+          Resultado alto com teste contaminado não vale nada no campo.
+        </p>
+      ),
+      exemplo: (
+        <Caso
+          tipo="artigo brasileiro"
+          titulo="Automatic Cattle Detection and Counting System in Aerial Images Using Computer Vision Algorithms"
+          autores="Leal et al."
+          onde="ENIAC 2024, SBC OpenLib"
+          link="https://sol.sbc.org.br/index.php/eniac/article/download/33817/33608"
+          resumo={<p>Frames de vídeos de drone sobre um pasto no Piauí viraram 120 imagens, rotuladas no Roboflow e ampliadas para 273 com aumento de dados. Um YOLOv9 pré-treinado no COCO foi ajustado no Colab e empacotado numa API de contagem.</p>}
+          pipeline={['Frames de vídeo de drone', 'Rótulos no Roboflow', 'Aumento: espelhamento, rotação, recorte, saturação', 'YOLOv9, 100 épocas, imgsz 640', 'API FastAPI + Docker']}
+          numeros={[{ v: '120', l: 'imagens originais' }, { v: '273', l: 'com aumento' }, { v: '88,5%', l: 'mAP' }, { v: '90%', l: 'revocação' }]}
+          discutir={[
+            'O aumento foi feito antes ou depois de separar treino e teste?',
+            'Frames do mesmo vídeo foram separados em conjuntos diferentes?',
+            'Que diferença faz o mAP ser mAP50 ou mAP50-95?',
+            'Que informação a mais vocês pediriam para acreditar no número?',
+          ]}
+        />
+      ),
+      pratica: <p>Cada dupla escreve duas perguntas de banca para o artigo e uma informação que faltou. Leitura de 2 duplas em voz alta.</p>,
+    },
+  ],
+  artigos: [
+    { tag: 'banco usado na aula', ref: 'Santos, T. T.; de Souza, L. L.; dos Santos, A. A.; Avila, S. (2020). Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, 170, 105247.', link: 'https://doi.org/10.1016/j.compag.2020.105247', porque: 'Embrapa Informática Agropecuária. Origem do WGISD: 300 fotos de 5 variedades de uva, com caixas e máscaras. Compara Mask R-CNN, YOLOv2 e YOLOv3 e rastreia cachos em vídeo.' },
+    { tag: 'banco usado na aula', ref: 'Haug, S.; Ostermann, J. (2014). A Crop/Weed Field Image Dataset for the Evaluation of Computer Vision Based Precision Agriculture Tasks. ECCV Workshops.', link: 'https://github.com/cwfid/dataset', porque: 'O CWFID: fotos de campo de cenoura com máscara por pixel de cultura e daninha. Usado nos exemplos de pipeline clássico e de U-Net.' },
+    { tag: 'leitura crítica', ref: 'Leal et al. (2024). Automatic Cattle Detection and Counting System in Aerial Images Using Computer Vision Algorithms. ENIAC, SBC.', link: 'https://sol.sbc.org.br/index.php/eniac/article/download/33817/33608', porque: 'Estudo brasileiro curto e completo, ótimo para treinar o olhar de banca.' },
+    { tag: 'arquitetura', ref: 'Redmon, J. et al. (2016). You Only Look Once: Unified, Real-Time Object Detection. CVPR.', link: 'https://arxiv.org/abs/1506.02640', porque: 'O artigo original da grade e do estágio único.' },
+    { tag: 'arquitetura', ref: 'Girshick, R. et al. (2014). Rich feature hierarchies for accurate object detection and semantic segmentation. CVPR.', link: 'https://arxiv.org/abs/1311.2524', porque: 'O R-CNN e as regiões candidatas.' },
+    { tag: 'arquitetura', ref: 'Ronneberger, O.; Fischer, P.; Brox, T. (2015). U-Net: Convolutional Networks for Biomedical Image Segmentation. MICCAI.', link: 'https://arxiv.org/abs/1505.04597', porque: 'A arquitetura em U com conexões de atalho.' },
+    { tag: 'viés nos dados', ref: 'Noyan, M. A. (2022). Uncovering bias in the PlantVillage dataset. arXiv.', link: 'https://arxiv.org/abs/2206.04374', porque: 'Mostra um classificador acertando doença de folha olhando só o fundo da foto: o melhor argumento para auditar dados.' },
   ],
   quiz: [
-    { p: 'Uma foto RGB de 4000 × 3000 pixels, 8 bits por canal, guarda quantos valores numéricos?', o: ['12 milhões', '36 milhões', '96 milhões', '288 milhões'], a: 1, e: '4000 × 3000 = 12 milhões de pixels, vezes 3 canais = 36 milhões de valores. (96 milhões seria o número de bits dividido por 3, confusão comum.)' },
-    { p: 'Com 3 bits por canal, cada canal pode assumir quantos níveis?', o: ['3', '6', '8', '256'], a: 2, e: '2³ = 8 níveis. Com 8 bits, 2⁸ = 256.' },
-    { p: 'O drone sobe de 30 m para 60 m com a mesma câmera. O que acontece com o GSD?', o: ['Cai pela metade', 'Não muda', 'Dobra, e cada pixel cobre 4× mais área', 'Quadruplica'], a: 2, e: 'O GSD é proporcional à altura. Dobrou a altura, dobrou o lado do pixel no chão, e a área coberta por pixel cresce 4 vezes.' },
-    { p: 'Por que HSV costuma funcionar melhor que RGB para separar folha de solo em fotos com sombra?', o: ['Porque tem mais canais', 'Porque a sombra altera principalmente o V e pouco o H', 'Porque HSV é o formato da câmera', 'Porque HSV tem 16 bits'], a: 1, e: 'A sombra reduz o brilho (V). A matiz (H) da folha continua na faixa do verde, então um corte em H resiste melhor à variação de luz.' },
-    { p: 'Você carregou uma imagem com cv2.imread e o canal img[:,:,0] parece ser o azul. Por quê?', o: ['A imagem está corrompida', 'O OpenCV usa a ordem BGR', 'O índice 0 é sempre o alfa', 'O OpenCV converte para HSV automaticamente'], a: 1, e: 'O OpenCV guarda os canais em ordem BGR. Use cv2.cvtColor(img, cv2.COLOR_BGR2RGB) antes de mostrar com matplotlib.' },
+    { p: 'Você precisa medir a área de cada cacho de uva. Qual tarefa?', o: ['classificação', 'detecção', 'segmentação semântica', 'segmentação de instâncias'], a: 3, e: 'Área por objeto exige uma máscara para cada cacho: instâncias.' },
+    { p: 'Imagem 1000 × 500. Caixa xyxy (100, 100, 300, 200). Qual a linha YOLO?', o: ['0 0.1 0.2 0.3 0.4', '0 0.2 0.3 0.2 0.2', '0 200 150 200 100', '0 0.2 0.3 0.3 0.2'], a: 1, e: 'xc = 200/1000, yc = 150/500, w = 200/1000, h = 100/500.' },
+    { p: 'Duas caixas 100 × 100, deslocadas 50 px na horizontal. IoU?', o: ['0,50', '0,33', '0,25', '0,67'], a: 1, e: 'Interseção 5000, união 15000.' },
+    { p: 'O que acontece ao baixar muito o limiar de IoU do NMS?', o: ['aparecem duplicatas', 'cachos encostados são apagados', 'a confiança sobe', 'nada muda'], a: 1, e: 'Com limiar baixo, qualquer sobreposição apaga a caixa vizinha, mesmo sendo outro objeto.' },
+    { p: 'Fotos em sequência de um voo foram divididas aleatoriamente entre treino e teste. O problema é:', o: ['desbalanceamento', 'vazamento', 'overfitting do NMS', 'GSD'], a: 1, e: 'Fotos vizinhas são quase iguais: o teste vira cola.' },
   ],
-  desafios: [
-    { nivel: 'aquecimento', txt: <>Calcule o GSD de um voo a 80 m com a câmera de referência (13,2 mm, 8,8 mm, 5472 px). Qual o tamanho de uma foto no chão, em metros?</> },
-    { nivel: 'mão na massa', txt: <>No Colab, carregue uma foto de folha e encontre o pixel com o menor valor de a* (o "mais verde"). Marque-o com um círculo usando matplotlib.</> },
-    { nivel: 'investigação', txt: <>Fotografe a mesma folha ao sol e à sombra. Compare os histogramas de V e de H das duas fotos. Qual canal mudou mais? Escreva três linhas explicando o porquê.</> },
-  ],
-  leitura: [
-    <>GONZALEZ, R. C.; WOODS, R. E. <i>Processamento digital de imagens</i>. 3. ed. Pearson, 2010. Cap. 2 (fundamentos: aquisição, amostragem e quantização) e cap. 6 (processamento de imagens coloridas).</>,
-    <>PEDRINI, H.; SCHWARTZ, W. R. <i>Análise de imagens digitais: princípios, algoritmos e aplicações</i>. Thomson, 2008. Capítulos iniciais sobre fundamentos e sistemas de cor.</>,
-    <>SOLOMON, C.; BRECKON, T. <i>Fundamentos de processamento digital de imagens</i>. LTC, 2013. Formação da imagem e cor, com exemplos práticos.</>,
-    <>NOGUTI JÚNIOR, J.; SANTOS, S. S. L.; FLORIAN, F. Visão computacional aplicada na agroindústria. <i>Revista FT</i>, v. 27, ed. 129, 2023. DOI: 10.5281/zenodo.10385278.</>,
+  entregas: [
+    <><b>Guia de anotação da dupla</b>, com pelo menos 5 casos-limite ilustrados com print.</>,
+    <><b>Export do CVAT auditado</b>: saída do auditor zerada e o data.yaml conferido.</>,
+    <><b>Registro da divisão</b>: qual grupo foi usado e a célula que prova que nenhum grupo aparece em dois conjuntos.</>,
   ],
 }

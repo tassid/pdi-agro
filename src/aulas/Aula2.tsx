@@ -1,544 +1,299 @@
-import { secaoAviario } from '../casos/Aviario'
-import { useMemo, useState } from 'react'
-import {
-  type RGB, type Gray, type Mask, type PointOp, type SE, newRGB, toGray, pointLUT, applyLUT, histogram, convolve, median, addNoise, KERNELS,
-  rgbIndex, normalize, otsu, threshold, erode, dilate, opening, closing, maskToGray, label, rng, INDEX_RANGE, plane,
-} from '../lib/img'
-import { ImgCanvas, Slider, Seg, SourcePicker, Lab, Callout, Term, Code, Histogram, CurvePlot } from '../ui'
-import { field, leaf, useSource } from '../samples'
-import type { Aula } from '../lesson'
-
-/* ============ Lab 2.1 · transformações de intensidade ============ */
-
-function fimDeTarde(img: RGB): RGB {
-  const o = newRGB(img.w, img.h)
-  for (let i = 0; i < img.data.length; i++) o.data[i] = 22 + img.data[i] * 0.34 * (i % 3 === 2 ? 0.8 : 1)
-  return o
-}
-
-function Intensidade() {
-  const src = useSource('folha')
-  const [escuro, setEscuro] = useState(true)
-  const [op, setOp] = useState<PointOp>('equalização')
-  const [gamma, setGamma] = useState(0.5)
-  const [lo, setLo] = useState(20)
-  const [hi, setHi] = useState(110)
-  const base = useMemo(() => (escuro ? fimDeTarde(src.img) : src.img), [src.img, escuro])
-  const g = useMemo(() => toGray(base), [base])
-  const lut = useMemo(() => pointLUT(op, g, gamma, lo, hi), [op, g, gamma, lo, hi])
-  const out = useMemo(() => {
-    // aplica a curva no brilho (cinza) e escala os 3 canais juntos, para não distorcer a matiz
-    const o = newRGB(base.w, base.h)
-    for (let i = 0; i < g.data.length; i++) {
-      const v = g.data[i]
-      const s = lut[Math.max(0, Math.min(255, Math.round(v)))]
-      if (op === 'negativo') {
-        for (let c = 0; c < 3; c++) o.data[i * 3 + c] = 255 - base.data[i * 3 + c]
-        continue
-      }
-      const f = s / Math.max(v, 1)
-      for (let c = 0; c < 3; c++) o.data[i * 3 + c] = Math.min(255, base.data[i * 3 + c] * f)
-    }
-    return o
-  }, [base, lut, g, op])
-  const h0 = useMemo(() => histogram(g, 64), [g])
-  const h1 = useMemo(() => histogram(applyLUT(g, lut), 64), [g, lut])
-  return (
-    <Lab n="2.1" title="Salvando a foto tirada no fim de tarde" desc="A foto chegou escura e sem contraste. Escolha uma transformação s = T(r) e compare os histogramas antes e depois.">
-      <SourcePicker {...src.pickerProps} />
-      <div className="controls">
-        <Seg value={escuro ? 'foto escura' : 'foto original'} options={['foto escura', 'foto original'] as const} onChange={(v) => setEscuro(v === 'foto escura')} label="entrada" />
-        <Seg value={op} options={['identidade', 'negativo', 'log', 'gamma', 'alargamento', 'equalização'] as const} onChange={setOp} label="transformação T(r)" />
-      </div>
-      {op === 'gamma' && (
-        <div className="controls">
-          <Slider id="gm" label="γ (gama)" value={gamma} min={0.2} max={3} step={0.05} onChange={setGamma} fmt={(v) => v.toFixed(2)} />
-        </div>
-      )}
-      {op === 'alargamento' && (
-        <div className="controls">
-          <Slider id="lo" label="r mínimo" value={lo} min={0} max={200} onChange={(v) => setLo(Math.min(v, hi - 5))} />
-          <Slider id="hi" label="r máximo" value={hi} min={20} max={255} onChange={(v) => setHi(Math.max(v, lo + 5))} />
-        </div>
-      )}
-      <div className="lab-cols">
-        <div className="panel">
-          <div className="panel-t">
-            <span>antes</span>
-          </div>
-          <ImgCanvas img={base} label="imagem antes" />
-          <Histogram data={h0} color="var(--ink-faint)" height={80} />
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>depois · {op}</span>
-          </div>
-          <ImgCanvas img={out} label="imagem depois" />
-          <Histogram data={h1} color="var(--leaf)" height={80} />
-        </div>
-        <div className="panel" style={{ justifyItems: 'center' }}>
-          <div className="panel-t" style={{ width: '100%' }}>
-            <span>a curva T(r)</span>
-          </div>
-          <CurvePlot lut={lut} />
-          <p className="note">
-            {op === 'equalização'
-              ? 'A curva da equalização é o histograma acumulado. Onde há muitos pixels, ela sobe rápido e "espalha" esses tons.'
-              : op === 'gamma'
-                ? 'γ < 1 levanta os tons escuros. γ > 1 escurece. É a mesma conta que a tela do seu celular faz.'
-                : op === 'log'
-                  ? 'O log expande os escuros e comprime os claros. Útil quando a informação está toda na sombra.'
-                  : op === 'alargamento'
-                    ? 'Tudo abaixo de r mínimo vira preto, tudo acima de r máximo vira branco, e o meio é esticado.'
-                    : op === 'negativo'
-                      ? 's = 255 − r. Parece bobo, mas ajuda a enxergar detalhe claro em fundo escuro.'
-                      : 'A diagonal: s = r. Nada muda.'}
-          </p>
-        </div>
-      </div>
-    </Lab>
-  )
-}
-
-/* ============ Lab 2.2 · convolução ============ */
-
-function Convolucao() {
-  const src = useSource('folha')
-  const [noise, setNoise] = useState<'nenhum' | 'sal e pimenta' | 'gaussiano'>('sal e pimenta')
-  const [amt, setAmt] = useState(0.06)
-  const [preset, setPreset] = useState('Média 3×3')
-  const [k, setK] = useState<number[][]>(KERNELS['Média 3×3'].k)
-  const [useMed, setUseMed] = useState(false)
-  const [p, setP] = useState<[number, number]>([180, 120])
-  const g = useMemo(() => toGray(src.img), [src.img])
-  const noisy = useMemo(() => addNoise(g, noise, amt), [g, noise, amt])
-  const out = useMemo(() => (useMed ? median(noisy, 1) : convolve(noisy, k)), [noisy, k, useMed])
-  const sum = k.flat().reduce((a, b) => a + b, 0)
-  const derivative = !useMed && Math.abs(sum) < 1e-6
-  const view: Gray = useMemo(() => {
-    if (!derivative) return out
-    const o = { ...out, data: new Float32Array(out.data.length) }
-    let mx = 1
-    for (const v of out.data) mx = Math.max(mx, Math.abs(v))
-    for (let i = 0; i < o.data.length; i++) o.data[i] = Math.min(255, (Math.abs(out.data[i]) / mx) * 255 * 2)
-    return o
-  }, [out, derivative])
-  const nb = [-1, 0, 1].map((j) =>
-    [-1, 0, 1].map((i) => {
-      const x = Math.min(g.w - 1, Math.max(0, p[0] + i)), y = Math.min(g.h - 1, Math.max(0, p[1] + j))
-      return noisy.data[y * g.w + x]
-    }),
-  )
-  const res = useMed ? [...nb.flat()].sort((a, b) => a - b)[4] : nb.flat().reduce((s, v, i) => s + v * k[Math.floor(i / 3)][i % 3], 0)
-  const overlay = useMemo(
-    () => (ctx: CanvasRenderingContext2D, s: number) => {
-      ctx.strokeStyle = '#e2bb52'
-      ctx.lineWidth = 2
-      ctx.strokeRect((p[0] - 1) * s, (p[1] - 1) * s, 3 * s, 3 * s)
-    },
-    [p],
-  )
-  return (
-    <Lab n="2.2" title="Convolução ao vivo" desc="Escolha um kernel pronto ou digite seus próprios pesos. Passe o mouse na imagem da esquerda para ver a conta que gera aquele pixel.">
-      <SourcePicker {...src.pickerProps} />
-      <div className="controls">
-        <Seg value={noise} options={['nenhum', 'sal e pimenta', 'gaussiano'] as const} onChange={setNoise} label="ruído" />
-        {noise !== 'nenhum' && <Slider id="amt" label="quantidade de ruído" value={amt} min={0.01} max={0.25} step={0.01} onChange={setAmt} fmt={(v) => v.toFixed(2)} />}
-      </div>
-      <div className="controls">
-        <Seg
-          value={useMed ? 'Mediana 3×3' : preset}
-          options={[...Object.keys(KERNELS), 'Mediana 3×3']}
-          onChange={(v) => {
-            if (v === 'Mediana 3×3') setUseMed(true)
-            else {
-              setUseMed(false)
-              setPreset(v)
-              setK(KERNELS[v].k.map((r) => [...r]))
-            }
-          }}
-          label="filtro"
-        />
-      </div>
-      <div className="lab-cols">
-        <div className="panel">
-          <div className="panel-t">
-            <span>entrada (com ruído)</span>
-          </div>
-          <ImgCanvas img={noisy} overlay={overlay} onPixel={(x, y) => setP([x, y])} label="imagem de entrada com ruído" />
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>saída</span>
-            <span>{derivative ? '|valor| reescalado' : ''}</span>
-          </div>
-          <ImgCanvas img={view} overlay={overlay} onPixel={(x, y) => setP([x, y])} label="imagem filtrada" />
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>{useMed ? 'mediana dos 9 vizinhos' : 'kernel (editável)'}</span>
-            {!useMed && <span>soma = {sum.toFixed(2)}</span>}
-          </div>
-          {!useMed && (
-            <div className="kgrid">
-              {k.map((row, j) =>
-                row.map((v, i) => (
-                  <input
-                    key={`${j}${i}`}
-                    id={`k${j}${i}`}
-                    aria-label={`peso linha ${j + 1} coluna ${i + 1}`}
-                    type="number"
-                    step="0.1"
-                    value={Number(v.toFixed(3))}
-                    onChange={(e) => setK((kk) => kk.map((r, jj) => r.map((c, ii) => (jj === j && ii === i ? +e.target.value : c))))}
-                  />
-                )),
-              )}
-            </div>
-          )}
-          <div className="readout">
-            {nb.map((row, j) => (
-              <div key={j}>{row.map((v, i) => (useMed ? String(Math.round(v)).padStart(4) : `${String(Math.round(v)).padStart(3)}×${k[j][i].toFixed(2).padStart(5)}`)).join('  ')}</div>
-            ))}
-            <div style={{ marginTop: 4 }}>
-              → pixel de saída = <b>{res.toFixed(1)}</b>
-            </div>
-          </div>
-          <p className="note">{useMed ? 'A mediana ordena os 9 valores e pega o do meio. Um pixel 0 ou 255 isolado nunca chega ao meio da fila.' : KERNELS[preset]?.nota}</p>
-        </div>
-      </div>
-    </Lab>
-  )
-}
-
-/* ============ Lab 2.3 · morfologia ============ */
-
-type MorphOp = 'nenhuma' | 'erosão' | 'dilatação' | 'abertura' | 'fechamento' | 'gradiente'
-
-function sujar(m: Mask, frac: number): Mask {
-  const R = rng(4)
-  const o = { ...m, data: m.data.slice() }
-  for (let i = 0; i < o.data.length; i++) if (R() < frac) o.data[i] = o.data[i] ? 0 : 1
-  return o
-}
-
-function Morfologia() {
-  const [cena, setCena] = useState<'plantas na lavoura' | 'folha com lesões'>('plantas na lavoura')
-  const [op, setOp] = useState<MorphOp>('abertura')
-  const [se, setSe] = useState<SE>('disco')
-  const [r, setR] = useState(1)
-  const [ruido, setRuido] = useState(0.03)
-  const base = useMemo<{ rgb: RGB; mask: Mask }>(() => {
-    if (cena === 'plantas na lavoura') {
-      const sc = field(11, 0.5, 30, 0.4)
-      const [lo, hi] = INDEX_RANGE.ExG
-      const v = normalize(rgbIndex(sc.rgb, 'ExG'), lo, hi)
-      return { rgb: sc.rgb, mask: threshold(v, otsu(histogram(v))) }
-    }
-    const lf = leaf(5, 'mancha-alvo', 0.7, 'claro')
-    const a = plane(lf.rgb, 'a*') // verde tem a* baixo
-    return { rgb: lf.rgb, mask: threshold(a, 118, false) }
-  }, [cena])
-  const dirty = useMemo(() => sujar(base.mask, ruido), [base, ruido])
-  const out = useMemo(() => {
-    if (op === 'erosão') return erode(dirty, se, r)
-    if (op === 'dilatação') return dilate(dirty, se, r)
-    if (op === 'abertura') return opening(dirty, se, r)
-    if (op === 'fechamento') return closing(dirty, se, r)
-    if (op === 'gradiente') {
-      const d = dilate(dirty, se, r), e = erode(dirty, se, r)
-      return { ...d, data: d.data.map((v, i) => (v && !e.data[i] ? 1 : 0)) }
-    }
-    return dirty
-  }, [dirty, op, se, r])
-  const nIn = useMemo(() => label(dirty).blobs.length, [dirty])
-  const nOut = useMemo(() => label(out).blobs.length, [out])
-  const areaIn = dirty.data.reduce((a, b) => a + b, 0), areaOut = out.data.reduce((a, b) => a + b, 0)
-  const seView = useMemo(() => {
-    const n = 2 * r + 1
-    const cells = []
-    for (let j = -r; j <= r; j++)
-      for (let i = -r; i <= r; i++) cells.push(se === 'quadrado' || (se === 'disco' && i * i + j * j <= r * r + 0.5) || (se === 'cruz' && (i === 0 || j === 0)))
-    return { n, cells }
-  }, [se, r])
-  return (
-    <Lab n="2.3" title="Carimbos morfológicos" desc="A máscara binária veio com ruído (pixels trocados ao acaso). Use o elemento estruturante para limpar e acompanhe quantos objetos sobram.">
-      <div className="controls">
-        <Seg value={cena} options={['plantas na lavoura', 'folha com lesões'] as const} onChange={setCena} label="cena" />
-        <Slider id="ruido" label="ruído na máscara" value={ruido} min={0} max={0.12} step={0.01} onChange={setRuido} fmt={(v) => `${(v * 100).toFixed(0)}%`} />
-      </div>
-      <div className="controls">
-        <Seg value={op} options={['nenhuma', 'erosão', 'dilatação', 'abertura', 'fechamento', 'gradiente'] as const} onChange={setOp} label="operação" />
-        <Seg value={se} options={['quadrado', 'disco', 'cruz'] as const} onChange={setSe} label="elemento estruturante" />
-        <Slider id="raio" label="raio" value={r} min={1} max={4} onChange={setR} fmt={(v) => `${v} (${2 * v + 1}×${2 * v + 1})`} />
-      </div>
-      <div className="lab-cols">
-        <div className="panel">
-          <div className="panel-t">
-            <span>cena</span>
-          </div>
-          <ImgCanvas img={base.rgb} label="cena original" />
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>máscara com ruído</span>
-            <span>{nIn} objetos</span>
-          </div>
-          <ImgCanvas img={maskToGray(dirty)} label="máscara com ruído" />
-        </div>
-        <div className="panel">
-          <div className="panel-t">
-            <span>depois da {op}</span>
-            <span>{nOut} objetos</span>
-          </div>
-          <ImgCanvas img={maskToGray(out)} label="máscara processada" />
-        </div>
-      </div>
-      <div className="lab-cols">
-        <div className="stats">
-          <div className="stat">
-            <b>{nIn} → {nOut}</b>
-            <span>objetos conexos</span>
-          </div>
-          <div className="stat">
-            <b>{((100 * areaOut) / (areaIn || 1)).toFixed(0)}%</b>
-            <span>área branca que sobrou</span>
-          </div>
-          <div className="stat" style={{ display: 'grid', gap: 4 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${seView.n}, 10px)`, gap: 1 }}>
-              {seView.cells.map((c, i) => (
-                <i key={i} style={{ width: 10, height: 10, background: c ? 'var(--ink)' : 'var(--rule)', borderRadius: 1 }} />
-              ))}
-            </div>
-            <span>o carimbo</span>
-          </div>
-        </div>
-        <p className="note">
-          {cena === 'plantas na lavoura'
-            ? 'Objetivo: voltar para algo perto do número real de plantas. Abertura com disco de raio 1 remove os pontinhos soltos. Com raio 3 ou 4, as plantas pequenas somem junto.'
-            : 'A lesão abriu buracos na máscara da folha. Fechamento com raio grande tapa os buracos e devolve a área foliar total, que é o denominador da severidade.'}
-        </p>
-      </div>
-    </Lab>
-  )
-}
-
-/* ============ conteúdo ============ */
-
-const CODE_2 = `# Aula 2 · transformações, filtros e morfologia
-import numpy as np
-import matplotlib.pyplot as plt
-from skimage import io, color, exposure, filters, morphology, util
-from scipy import ndimage as ndi
-
-img = io.imread("folha.jpg")[..., :3]
-cinza = color.rgb2gray(img)                         # float entre 0 e 1
-
-# 1) transformações de intensidade
-eq    = exposure.equalize_hist(cinza)               # equalização global
-clahe = exposure.equalize_adapthist(cinza)          # equalização local (CLAHE)
-gama  = exposure.adjust_gamma(cinza, gamma=0.5)     # clareia os escuros
-
-# 2) filtragem espacial
-ruidosa = util.random_noise(cinza, mode="s&p", amount=0.06)
-media   = ndi.uniform_filter(ruidosa, size=3)
-mediana = ndi.median_filter(ruidosa, size=3)
-sobel_x = ndi.convolve(cinza, np.array([[-1,0,1],[-2,0,2],[-1,0,1]]))
-
-# 3) morfologia sobre uma máscara de planta (limiar em a*, verde = a* negativo)
-a = color.rgb2lab(img)[..., 1]
-mascara = a < -8
-limpa   = morphology.binary_opening(mascara, morphology.disk(1))
-sem_buraco = ndi.binary_fill_holes(morphology.binary_closing(limpa, morphology.disk(3)))
-
-fig, ax = plt.subplots(2, 4, figsize=(16, 7))
-for a_, im, t in zip(ax.ravel(),
-    [cinza, eq, ruidosa, mediana, np.abs(sobel_x), mascara, limpa, sem_buraco],
-    ["cinza", "equalizada", "sal e pimenta", "mediana 3x3", "|Sobel x|", "máscara", "abertura", "fechamento + preencher"]):
-    a_.imshow(im, cmap="gray"); a_.set_title(t); a_.axis("off")
-plt.tight_layout(); plt.show()`
+import type { Aula } from '../curso'
+import { Fig } from '../curso'
+import { Callout, Caso, Code } from '../ui'
+import { LabPerceptron } from '../labs'
 
 export const aula2: Aula = {
   id: 'aula2',
   n: 2,
-  trilha: 'grad',
-  titulo: 'Receitas aplicadas em cada pixel',
-  ideia: 'Toda transformação é uma receita repetida em cada pixel. Se a receita olha só o pixel, é operação de ponto. Se olha os vizinhos, é filtro. Se usa um carimbo, é morfologia.',
-  ementa: ['Transformações de intensidade', 'Filtragem espacial', 'Convolução', 'Morfologia matemática'],
-  labs: ['Foto no fim de tarde', 'Convolução ao vivo', 'Carimbos morfológicos', 'Caso real: aviário'],
-  cor: ['#2d6a8a', '#6aa84f', '#e0bd4f', '#1b2417'],
+  titulo: 'Redes neurais, treinamento e avaliação em campo',
+  ideia: 'Uma rede é um empilhado de perceptrons com filtros aprendidos. Treinar é fácil; difícil é saber se o número que sai no fim vale para a próxima fazenda.',
+  chips: ['perceptron e XOR', 'ativações', 'CNN e transfer learning', 'perdas do YOLO', 'augmentation', 'GSD e SAHI', 'P, R, F1, mAP', 'early stopping', 'grade × aleatória', 'mudança de domínio', 'rastreamento'],
   objetivos: [
-    'Aplicar transformações de intensidade (negativo, log, gama, alargamento, equalização) e ler o efeito no histograma.',
-    'Calcular à mão a saída de uma convolução 3×3 e prever o efeito de um kernel pelos seus pesos.',
-    'Escolher entre filtro da média e da mediana conforme o tipo de ruído.',
-    'Usar erosão, dilatação, abertura e fechamento para limpar máscaras de plantas e folhas.',
-    'Reproduzir a contagem de aves de um TCC da UTFPR Medianeira e explicar por que a subtração de fundo venceu o limiar simples.',
+    'Aplicar a regra de atualização do perceptron e explicar por que uma camada não resolve o XOR.',
+    'Relacionar filtros convolucionais aprendidos aos filtros clássicos de PDI e justificar o transfer learning.',
+    'Configurar e executar um treino YOLO, lendo as perdas, o augmentation e a parada antecipada.',
+    'Diagnosticar underfitting e overfitting pelas curvas e interpretar precisão, revocação, F1, mAP50 e mAP50-95.',
+    'Avaliar o modelo num domínio diferente do treino e explicar a queda de desempenho.',
+    'Contar objetos em vídeo com rastreamento e exportar o modelo de forma reprodutível.',
   ],
-  roteiro: [
-    { t: 'Gancho: a foto escura', min: 4, tipo: 'gancho' },
-    { t: 'Operações de ponto + Lab 2.1', min: 11, tipo: 'lab' },
-    { t: 'Convolução', min: 6, tipo: 'conceito' },
-    { t: 'Lab 2.2', min: 8, tipo: 'lab' },
-    { t: 'Morfologia + Lab 2.3', min: 12, tipo: 'lab' },
-    { t: 'Caso real: aviário + Lab 2.4', min: 12, tipo: 'lab' },
-    { t: 'Fechamento + quiz', min: 7, tipo: 'fecho' },
-  ],
-  secoes: [
+  intervaloDepois: 'b23',
+  notebook: {
+    nome: 'Aula2_Treino_Avaliacao_Dominio.ipynb',
+    arquivo: 'Aula2_Treino_Avaliacao_Dominio.ipynb',
+    descricao: 'Treina um YOLO no WGISD com divisão por variedade, lê as curvas, mede P, R e mAP e testa numa variedade nunca vista.',
+  },
+  blocos: [
     {
-      id: 'a2-gancho',
-      titulo: 'A foto que chegou escura',
-      min: 4,
-      body: (
-        <div className="prose">
+      id: 'b21',
+      cod: '2.1',
+      titulo: 'Preparação do ambiente',
+      min: 15,
+      tipo: 'lab',
+      slides: [{ titulo: 'Checklist antes de treinar', pontos: ['Ambiente de execução → GPU (T4)', '!nvidia-smi mostra a placa', 'pip install ultralytics e anotar a versão', 'Clonar o WGISD e rodar a célula de preparação', 'Abrir o data.yaml e conferir caminhos e classes'] }],
+      teoria: <p>Treino de detector sem GPU leva horas. No Colab, ative a GPU antes de qualquer outra célula, porque trocar o ambiente apaga o que já foi instalado. Anote as versões do Python, do PyTorch e do Ultralytics: elas vão no relatório.</p>,
+      exemplo: <Code code={`!nvidia-smi --query-gpu=name,memory.total --format=csv
+!pip -q install ultralytics
+import ultralytics, torch, sys
+print(sys.version.split()[0], torch.__version__, ultralytics.__version__)`} />,
+      pratica: <p>Rodem as células 1 e 2 do notebook. Elas clonam o WGISD (só as anotações e 300 fotos), montam a divisão por variedade da Aula 1 e escrevem o <code>data.yaml</code>. Conferir no print: treino com 3 variedades, validação com 1, teste com 1.</p>,
+    },
+    {
+      id: 'b22',
+      cod: '2.2',
+      titulo: 'Do perceptron à CNN',
+      min: 50,
+      tipo: 'conceito',
+      slides: [
+        { titulo: 'O perceptron de Rosenblatt', img: 'perceptron_and_or_xor', formula: <>ŷ = degrau(w·x + b) · w ← w + η (y − ŷ) x</>, pontos: ['AND e OR: uma reta separa', 'XOR: nenhuma reta separa', 'Solução: camada escondida + ativação não linear'] },
+        { titulo: 'Funções de ativação', img: 'ativacoes', pontos: ['Sigmoide: suave, mas satura', 'ReLU: barata, não satura no positivo', 'SiLU: suave como a sigmoide, usada no YOLO'] },
+        { titulo: 'Filtro escolhido × filtro aprendido', img: 'filtros_conv', pontos: ['Convolução = o kernel da Aula 2 de PDI', 'Na CNN, os 9 números do kernel 3×3 são pesos', 'Retropropagação ajusta os pesos pelo gradiente da perda'] },
+        { titulo: 'Transfer learning', pontos: ['Pesos do COCO já sabem bordas, texturas, formas', 'Só as camadas finais precisam aprender "cacho de uva"', 'Menos dados, menos épocas, melhor resultado', 'Cuidado: COCO é urbano; o agro é outro domínio'] },
+      ],
+      teoria: (
+        <>
           <p>
-            Um técnico de campo mandou pelo WhatsApp a foto de uma folha suspeita de ferrugem, tirada às 18h. Está escura e sem contraste. Dá para salvar sem voltar à lavoura? Na maioria das vezes, sim,
-            porque a informação continua lá, só está espremida em poucos níveis de cinza. Hoje a gente aprende três famílias de receitas para mexer nos pixels.
+            O <b>perceptron</b> (Rosenblatt, 1958) soma as entradas com pesos, compara com zero e responde 0 ou 1. A regra de aprendizado é simples: quando erra, mexe os pesos na direção do exemplo,{' '}
+            <code>w ← w + η (y − ŷ) x</code>. Isso traça uma reta no plano, e por isso resolve AND e OR mas nunca o XOR, que precisa de duas retas.
           </p>
-        </div>
+          <p>
+            Empilhando perceptrons numa <b>camada escondida</b> e trocando o degrau por uma função suave (sigmoide, ReLU, SiLU), a rede vira um <b>MLP</b> e passa a desenhar fronteiras curvas. Os pesos
+            agora são ajustados pelo <b>gradiente descendente</b>: a <b>retropropagação</b> calcula quanto cada peso contribuiu para o erro e o otimizador dá um passo contrário.
+          </p>
+          <p>
+            Para imagem, ligar cada pixel a cada neurônio é inviável (uma foto de 640 × 640 × 3 tem 1,2 milhão de entradas). A <b>CNN</b> resolve com convolução: um kernel pequeno percorre a imagem,
+            exatamente como Sobel e Laplaciano, só que os números do kernel são aprendidos. As primeiras camadas aprendem bordas; as últimas, partes de objeto.
+          </p>
+          <p>
+            <b>Transfer learning</b>: em vez de começar com pesos aleatórios, começamos com os pesos treinados no COCO (330 mil imagens, 80 classes). As camadas iniciais já sabem ver; ajustamos o resto
+            para as nossas classes. É isso que <code>YOLO("yolo11n.pt")</code> faz.
+          </p>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="perceptron_and_or_xor" cap="Perceptron treinado de verdade (η = 0,2) nas três portas. No XOR ele termina 30 épocas ainda errando." />
+          <Fig n="ativacoes" cap="As ativações mais usadas. O YOLO usa SiLU nas camadas convolucionais." />
+          <Fig n="filtros_conv" cap="Quatro kernels clássicos aplicados a uma foto real do CWFID. Uma CNN aprende dezenas desses por camada." />
+          <Callout kind="analogia"><p>O backbone pré-treinado é um agrônomo recém-formado: já sabe o que é folha, sombra e solo. Falta só mostrar como é o cacho desta variedade.</p></Callout>
+        </>
+      ),
+      pratica: (
+        <>
+          <LabPerceptron />
+          <p><b>No quadro (10 min).</b> Pesos iniciais zero, η = 0,2, porta OR. Façam à mão a primeira época (4 exemplos) e confiram no laboratório.</p>
+        </>
       ),
     },
     {
-      id: 'a2-ponto',
-      titulo: 'Operações de ponto: s = T(r)',
-      min: 11,
-      body: (
-        <div className="prose">
+      id: 'b23',
+      cod: '2.3',
+      titulo: 'Treinamento YOLO e execução na GPU',
+      min: 45,
+      tipo: 'conceito',
+      slides: [
+        { titulo: 'O que o YOLO minimiza', pontos: ['box_loss: erro de posição e tamanho da caixa (IoU)', 'cls_loss: erro de classe', 'dfl_loss: refinamento da borda da caixa', 'Os nomes mudam entre versões: confira no results.csv'] },
+        { titulo: 'Augmentation já vem ligado', img: 'augmentation_real', pontos: ['Geométrico: as caixas acompanham', 'Fotométrico: as caixas ficam iguais', 'Mosaic mistura 4 fotos: mais contexto, mais objetos pequenos'] },
+        { titulo: 'Objeto pequeno: imgsz e SAHI', img: 'sahi_fatias', pontos: ['imgsz=640 encolhe uma foto de 2048 px 3,2 vezes', 'Mais imgsz = mais detalhe e mais memória', 'SAHI fatia a foto e junta com NMS'] },
+      ],
+      teoria: (
+        <>
           <p>
-            A operação mais simples olha <b>só o próprio pixel</b>. Entra um nível <code>r</code>, sai um nível <code>s = T(r)</code>. Como os valores vão de 0 a 255, dá para pré-calcular a resposta para
-            todos eles numa tabela de 256 posições, a{' '}
-            <Term def="Look-Up Table: uma tabela com a resposta pronta para cada valor de entrada possível. Em vez de calcular a fórmula para cada um dos milhões de pixels, o programa só consulta a tabela.">LUT</Term>.
+            O Ultralytics reporta três perdas na detecção: <code>box_loss</code> (quão longe a caixa está da anotação, medida por IoU), <code>cls_loss</code> (erro de classe) e <code>dfl_loss</code>{' '}
+            (distribution focal loss, que refina onde fica cada borda). Os nomes e a composição mudam entre versões, então leia o cabeçalho do <code>results.csv</code> da sua versão.
           </p>
-          <Callout kind="analogia">
-            <p>
-              É a tabela de conversão de notas que o professor usa: tirou 4,5 no bruto, vira 6,0 depois da curva. A tabela é a mesma para a turma inteira. Ninguém recebe ajuste pela nota do colega do
-              lado. Isso é uma operação de ponto.
-            </p>
-          </Callout>
           <p>
-            A <b>equalização de histograma</b> é especial porque a própria imagem escolhe a curva: T(r) é o histograma acumulado normalizado. Onde há muitos pixels, a curva sobe rápido e esses tons ganham
-            mais espaço na saída.
+            O <b>augmentation</b> já vem ligado: mosaic, espelhamento, variação de HSV, escala e translação. Transformações geométricas mudam as caixas; fotométricas não. Ele é aplicado só no treino,
+            depois da divisão: aumentar antes de dividir é vazamento.
           </p>
-          <Intensidade />
-          <Callout kind="pegadinha">
-            <p>
-              Equalizar uma imagem antes de medir cor é trocar a régua no meio da medição. Serve para <b>ver</b> melhor, não para comparar a cor de duas folhas fotografadas em momentos diferentes.
-            </p>
-          </Callout>
-        </div>
+          <p>
+            <b>Resolução.</b> O <code>imgsz</code> é o lado da imagem que entra na rede. Fotos de 2048 px reduzidas para 640 perdem detalhe de objetos pequenos (volte ao GSD da Aula 1). Duas saídas:
+            subir o <code>imgsz</code> (custa memória) ou fatiar a imagem em pedaços com sobreposição e juntar as detecções, como faz o <b>SAHI</b> (Akyon et al., 2022).
+          </p>
+          <p><b>Parada antecipada</b>: <code>patience=15</code> encerra o treino depois de 15 épocas sem melhora na validação e guarda o melhor peso em <code>best.pt</code>.</p>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="augmentation_real" cap="As transformações do Ultralytics aplicadas a fotos reais do WGISD, com as caixas recalculadas. O mosaic junta quatro variedades." />
+          <Fig n="sahi_fatias" cap="Foto de 2048 px do WGISD: inteira reduzida para 640 (esquerda) ou fatiada em pedaços de 640 com sobreposição (direita)." />
+        </>
+      ),
+      pratica: (
+        <>
+          <p>Disparem o treino <b>antes do intervalo</b> (célula 3 do notebook). Ele roda enquanto vocês tomam café.</p>
+          <Code code={`from ultralytics import YOLO
+modelo = YOLO("yolo11n.pt")          # confira os pesos disponíveis na sua versão
+modelo.train(
+    data="wgisd_yolo/data.yaml",
+    epochs=40, imgsz=640, batch=16,
+    patience=15,                    # parada antecipada
+    seed=42, project="runs", name="uva_n",
+)`} />
+          <Callout kind="prof"><p>Com a T4 do Colab, 40 épocas no WGISD levam cerca de 10 a 15 minutos com o modelo nano. Se a GPU cair, o notebook tem pesos prontos para seguir.</p></Callout>
+        </>
       ),
     },
     {
-      id: 'a2-conv',
-      titulo: 'Filtragem espacial e convolução',
-      min: 14,
-      body: (
-        <div className="prose">
-          <p>
-            Agora a receita olha os <b>vizinhos</b>. Uma janelinha 3×3 de pesos, o <Term def="Também chamado de máscara, filtro ou núcleo. É a matriz pequena de pesos que desliza sobre a imagem.">kernel</Term>,
-            desliza sobre a imagem. Em cada posição, multiplicamos cada peso pelo pixel embaixo dele e somamos. O resultado vira o pixel de saída.
-          </p>
-          <div className="formula">g(x, y) = Σᵢ Σⱼ w(i, j) · f(x + i, y + j)</div>
-          <p>Três dicas para prever o efeito de um kernel só olhando os pesos:</p>
-          <ul>
-            <li>
-              <b>Pesos todos positivos que somam 1</b>: suavização (média, gaussiano). Região uniforme continua igual.
-            </li>
-            <li>
-              <b>Pesos que somam 0</b>: derivada. Região uniforme vira zero, e só as bordas acendem (Sobel, Laplaciano).
-            </li>
-            <li>
-              <b>Soma 1 com centro grande e vizinhos negativos</b>: realce de nitidez.
-            </li>
-          </ul>
-          <Convolucao />
-          <Callout kind="campo">
-            <p>
-              O Sobel horizontal acende nas bordas das linhas de plantio. Combinado com a transformada de Hough, é o começo de muito algoritmo de detecção de linhas de cultura, usado para guiar
-              máquinas e para achar daninhas na entrelinha (tudo verde fora da linha é suspeito).
-            </p>
-          </Callout>
-          <Callout kind="prof">
-            <p>
-              Faça uma conta de convolução na lousa com uma grade 5×5 de números inventados antes de abrir o Lab 2.2. Depois peça para a turma conferir passando o mouse no pixel correspondente.
-            </p>
-          </Callout>
-        </div>
-      ),
-    },
-    {
-      id: 'a2-morfo',
-      titulo: 'Morfologia matemática',
-      min: 12,
-      body: (
-        <div className="prose">
-          <p>
-            Morfologia trabalha com <b>forma</b>, em geral numa imagem binária (planta = 1, fundo = 0). A ferramenta é o{' '}
-            <Term def="Um pequeno conjunto de pixels com forma definida (quadrado, disco, cruz) usado como sonda. Ele é centrado em cada pixel da imagem para decidir o resultado.">elemento estruturante</Term>,
-            um carimbo que passamos por toda a imagem.
-          </p>
-          <ul>
-            <li>
-              <b>Erosão</b>: o pixel só continua branco se o carimbo <i>inteiro</i> couber dentro do objeto. Objetos encolhem e os pequenos somem.
-            </li>
-            <li>
-              <b>Dilatação</b>: o pixel vira branco se o carimbo <i>encostar</i> em qualquer parte do objeto. Objetos engordam e buracos pequenos fecham.
-            </li>
-            <li>
-              <b>Abertura</b> = erosão e depois dilatação. Remove sujeira menor que o carimbo e devolve o tamanho do que sobrou.
-            </li>
-            <li>
-              <b>Fechamento</b> = dilatação e depois erosão. Tapa buracos e fendas menores que o carimbo.
-            </li>
-          </ul>
-          <Callout kind="analogia">
-            <p>
-              Erosão é passar uma borracha redonda pelas bordas: tudo que é mais fino que a borracha desaparece. Dilatação é contornar o desenho com uma caneta grossa. Abertura é apagar e redesenhar: o que
-              era fino demais para a borracha não volta.
-            </p>
-          </Callout>
-          <Morfologia />
-          <Callout kind="pegadinha">
-            <p>
-              A ordem importa. Abertura e fechamento com o mesmo carimbo dão resultados diferentes, e aplicar erosão três vezes com disco de raio 1 não é igual a uma erosão com disco de raio 3 (o formato
-              acumulado vira um losango).
-            </p>
-          </Callout>
-        </div>
-      ),
-    },
-    secaoAviario,
-    {
-      id: 'a2-fecho',
-      titulo: 'Pra levar pra casa',
-      min: 7,
-      body: (
-        <div className="prose">
+      id: 'b24',
+      cod: '2.4',
+      titulo: 'Curvas, métricas e hiperparâmetros',
+      min: 45,
+      tipo: 'conceito',
+      slides: [
+        { titulo: 'Lendo as curvas', img: 'curvas_treino', pontos: ['As duas perdas altas: underfitting', 'Treino desce e validação sobe: overfitting', 'best.pt fica no pico da validação'] },
+        { titulo: 'Precisão, revocação, F1', img: 'pr_curva_real', formula: <>P = TP/(TP+FP) · R = TP/(TP+FN) · F1 = 2PR/(P+R)</>, pontos: ['AP = área sob a curva PR', 'mAP50: média das classes com IoU 0,5', 'mAP50-95: média de IoU 0,50 a 0,95'] },
+        { titulo: 'Matriz de confusão do detector', img: 'matriz_confusao', pontos: ['Diagonal: acertos por classe', 'Linha "fundo": falsos positivos', 'Coluna "fundo": objetos que o modelo não viu'] },
+        { titulo: 'Grade ou aleatória?', img: 'grid_vs_random', pontos: ['Mesmo orçamento de treinos', 'Aleatória testa mais valores do que importa', 'Ajuste só com treino e validação; teste é para o fim'] },
+      ],
+      teoria: (
+        <>
+          <p>Para cada imagem, as caixas previstas são casadas com as anotadas por IoU ≥ 0,5. Daí saem:</p>
           <ol>
-            <li>Operação de ponto olha só o pixel e pode virar uma tabela (LUT). Equalização é a curva escolhida pelo próprio histograma.</li>
-            <li>Convolução olha a vizinhança. A soma dos pesos do kernel já diz se ele suaviza (soma 1) ou detecta borda (soma 0). Para sal e pimenta, a mediana ganha da média.</li>
-            <li>Morfologia usa um carimbo: abertura limpa sujeira pequena, fechamento tapa buracos. O tamanho do carimbo é uma decisão sobre o tamanho do que você quer manter.</li>
+            <li><b>Precisão</b> P = TP / (TP + FP): das caixas que o modelo desenhou, quantas eram cachos.</li>
+            <li><b>Revocação</b> R = TP / (TP + FN): dos cachos que existiam, quantos o modelo achou.</li>
+            <li><b>F1</b>: média harmônica das duas; o pico da curva F1 × confiança sugere o <code>conf</code> de uso.</li>
+            <li><b>AP</b>: área sob a curva precisão × revocação de uma classe. <b>mAP50</b> é a média das classes com IoU 0,5; <b>mAP50-95</b> repete para IoU de 0,50 a 0,95 e tira a média.</li>
           </ol>
-          <Code code={CODE_2} />
-        </div>
+          <p>
+            Métrica de detecção não é métrica de negócio. Para estimar produção, o que importa é o <b>erro de contagem</b> (cachos previstos − cachos reais por fileira). Um modelo com mAP mediano pode
+            contar bem, e o contrário também acontece.
+          </p>
+          <p>
+            <b>Hiperparâmetros</b>: taxa de aprendizado, imgsz, tamanho do modelo, augmentation. Com orçamento fixo, a <b>busca aleatória</b> costuma vencer a <b>busca em grade</b> (Bergstra e Bengio, 2012),
+            porque explora mais valores do hiperparâmetro que realmente importa. Toda escolha é feita olhando a validação. O teste é aberto uma vez, no fim.
+          </p>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="curvas_treino" cap="Formato típico do results.csv. As curvas são ilustrativas; no notebook vocês plotam as suas." />
+          <Fig n="pr_curva_real" cap="Curva PR calculada sobre 221 cachos reais do WGISD contra um detector simulado. Repare como o AP cai ao exigir IoU 0,75." />
+          <Fig n="matriz_confusao" cap="Leitura da matriz de confusão de um detector com duas classes e fundo (valores ilustrativos)." />
+          <Fig n="grid_vs_random" cap="Nove treinos em grade testam 3 taxas de aprendizado; nove aleatórios testam 9." />
+        </>
+      ),
+      pratica: (
+        <>
+          <p>Com o treino pronto (célula 4):</p>
+          <ol>
+            <li>Plotem as perdas e o mAP50 por época. O treino parou por paciência ou por fim de épocas?</li>
+            <li>Rodem <code>model.val(split="val")</code> e anotem P, R, mAP50 e mAP50-95.</li>
+            <li>Achem o <code>conf</code> do pico de F1 e meçam o erro de contagem por foto da validação.</li>
+          </ol>
+          <Code code={`import pandas as pd
+df = pd.read_csv("runs/uva_n/results.csv"); df.columns = df.columns.str.strip()
+df.plot(x="epoch", y=["train/box_loss", "val/box_loss"])
+df.plot(x="epoch", y=["metrics/mAP50(B)", "metrics/mAP50-95(B)"])
+
+m = YOLO("runs/uva_n/weights/best.pt").val(data="wgisd_yolo/data.yaml", split="val")
+print(f"P={m.box.mp:.3f} R={m.box.mr:.3f} mAP50={m.box.map50:.3f} mAP50-95={m.box.map:.3f}")`} />
+        </>
       ),
     },
+    {
+      id: 'b25',
+      cod: '2.5',
+      titulo: 'Laboratório 2: mudança de domínio, rastreamento e exportação',
+      min: 45,
+      tipo: 'lab',
+      slides: [
+        { titulo: 'O teste que importa: outra fazenda', img: 'dominio_variedades', pontos: ['Cor do cacho, folhagem, luz e câmera mudam', 'Treinamos em 3 variedades e testamos em Syrah', 'A queda de mAP mede o quanto o modelo generaliza'] },
+        { titulo: 'Contar em vídeo sem contar duas vezes', img: 'rastreamento_ids', pontos: ['Detector vê o mesmo cacho em vários quadros', 'Rastreador (ByteTrack) mantém o id', 'Contagem = ids únicos, não soma de caixas'] },
+        { titulo: 'Exportar e reproduzir', pontos: ['model.export(format="onnx") para rodar fora do Python', 'Guardar: best.pt, data.yaml, args.yaml, results.csv', 'Anotar versões, semente e divisão', 'Notebook roda do zero e chega no mesmo número'] },
+      ],
+      teoria: (
+        <>
+          <p>
+            Um modelo treinado e validado numa fazenda aprende também o que é próprio daquela fazenda: a luz da manhã, a câmera, a cor do solo, a variedade. Num <b>domínio diferente</b> o desempenho cai,
+            e essa queda é a informação mais honesta do trabalho. No WGISD, cada variedade é um domínio: Syrah tem cachos escuros e Chardonnay tem cachos verdes.
+          </p>
+          <p>
+            Em <b>vídeo</b>, o mesmo cacho aparece em dezenas de quadros. Somar as caixas superestima a contagem. Um rastreador como o <b>ByteTrack</b> (Zhang et al., 2022) associa as detecções entre quadros e
+            dá um id a cada objeto; a contagem passa a ser o número de ids únicos. Santos et al. (2020) fizeram exatamente isso com os cachos do WGISD.
+          </p>
+          <p>
+            Por fim, <b>exportar</b> o modelo (ONNX, TorchScript, TFLite) permite rodar no celular ou no computador de bordo do trator. E reprodutibilidade é guardar tudo que levou ao número: pesos,
+            configuração, versões, semente e a divisão.
+          </p>
+        </>
+      ),
+      exemplo: (
+        <>
+          <Fig n="dominio_variedades" cap="Uma foto de cada variedade do WGISD com as caixas reais. O brilho médio e a cor do cacho mudam bastante entre domínios." />
+          <Fig n="rastreamento_ids" cap="Simulação de uma câmera andando pela fileira sobre uma foto real: cada cacho mantém o id entre quadros." />
+        </>
+      ),
+      pratica: (
+        <>
+          <ol>
+            <li>Avaliem o <code>best.pt</code> no teste (Syrah, nunca visto). Comparem com a validação.</li>
+            <li>Escolham 5 erros (FP ou FN) e classifiquem a causa: luz, oclusão, escala, cor, anotação.</li>
+            <li>Rodem o rastreamento no vídeo de exemplo do notebook e comparem soma de caixas com ids únicos.</li>
+            <li>Exportem para ONNX e guardem a pasta <code>runs/uva_n</code> no Drive.</li>
+          </ol>
+          <Code code={`m = YOLO("runs/uva_n/weights/best.pt")
+teste = m.val(data="wgisd_yolo/data.yaml", split="test")
+print("queda de mAP50:", round(m.val(split="val").box.map50 - teste.box.map50, 3))
+
+ids = set()
+for r in m.track("fileira.mp4", tracker="bytetrack.yaml", stream=True, conf=0.3):
+    if r.boxes.id is not None: ids.update(r.boxes.id.int().tolist())
+print("cachos contados:", len(ids))
+m.export(format="onnx")`} />
+        </>
+      ),
+    },
+    {
+      id: 'b26',
+      cod: '2.6',
+      titulo: 'Pesquisa aplicada e orientação do trabalho',
+      min: 20,
+      tipo: 'leitura',
+      slides: [
+        { titulo: 'O que a pesquisa faz com isso', pontos: ['Santos et al. (2020): WGISD, Embrapa, detecção + rastreamento 3D', 'David et al. (2020): GWHD, espigas de trigo de vários países', 'Dang et al. (2023): YOLOWeeds, 25 YOLOs comparados em daninhas do algodão'] },
+        { titulo: 'Trabalho em dupla', pontos: ['Dados e anotação: 25%', 'Treino e experimentação: 25%', 'Avaliação crítica e domínio externo: 30%', 'Demonstração e defesa: 20%'] },
+      ],
+      teoria: <p>Os três trabalhos abaixo fazem as mesmas escolhas que vocês fizeram hoje, em escala maior. Leiam procurando: como dividiram, que métrica reportaram e se testaram fora do domínio.</p>,
+      exemplo: (
+        <Caso
+          tipo="artigo da Embrapa"
+          titulo="Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association"
+          autores="Santos, de Souza, dos Santos e Avila"
+          onde="Computers and Electronics in Agriculture 170 (2020), 105247"
+          link="https://doi.org/10.1016/j.compag.2020.105247"
+          resumo={<p>Os autores criaram o WGISD nos vinhedos da Vinícola Guaspari, em Espírito Santo do Pinhal (SP), compararam detectores de um e dois estágios e usaram a trajetória da câmera para associar cachos entre quadros e contá-los sem repetição. É o banco que vocês usaram nas duas aulas.</p>}
+          pipeline={['300 fotos, 5 variedades, caixas e máscaras', 'Mask R-CNN, YOLOv2 e YOLOv3', 'Divisão em treino e teste declarada no repositório', 'Rastreamento por associação 3D em vídeo']}
+          numeros={[{ v: '300', l: 'fotos' }, { v: '4.432', l: 'cachos anotados' }, { v: '5', l: 'variedades' }]}
+          discutir={['A divisão do banco original é por foto. Que vazamento isso pode causar entre fotos do mesmo vinhedo?', 'Por que o rastreamento muda o número que interessa ao produtor?']}
+        />
+      ),
+      pratica: (
+        <Callout kind="prof">
+          <p>Fechar com os critérios do trabalho (seção abaixo) e abrir 5 minutos para dúvidas. Cada dupla sai com o problema e o grupo de divisão escolhidos.</p>
+        </Callout>
+      ),
+    },
+  ],
+  artigos: [
+    { tag: 'banco da aula', ref: 'Santos, T. T. et al. (2020). Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, 170, 105247.', link: 'https://doi.org/10.1016/j.compag.2020.105247', porque: 'O WGISD e o rastreamento de cachos em vídeo.' },
+    { tag: 'benchmark', ref: 'Dang, F.; Chen, D.; Lu, Y.; Li, Z. (2023). YOLOWeeds: A novel benchmark of YOLO object detectors for multi-class weed detection in cotton production systems. Computers and Electronics in Agriculture, 205, 107655.', link: 'https://doi.org/10.1016/j.compag.2023.107655', porque: '25 YOLOs comparados em 12 daninhas, com Monte-Carlo e análise de augmentation. Tem notebook extra no repositório.' },
+    { tag: 'domínio', ref: 'David, E. et al. (2020). Global Wheat Head Detection (GWHD) dataset. Plant Phenomics.', link: 'https://arxiv.org/abs/2005.02162', porque: 'Espigas de trigo de vários países e câmeras: o exemplo clássico de mudança de domínio.' },
+    { tag: 'hiperparâmetros', ref: 'Bergstra, J.; Bengio, Y. (2012). Random search for hyper-parameter optimization. JMLR 13.', link: 'https://jmlr.org/papers/v13/bergstra12a.html', porque: 'Por que a busca aleatória vence a grade com o mesmo orçamento.' },
+    { tag: 'rastreamento', ref: 'Zhang, Y. et al. (2022). ByteTrack: Multi-Object Tracking by Associating Every Detection Box. ECCV.', link: 'https://arxiv.org/abs/2110.06864', porque: 'O rastreador padrão do Ultralytics.' },
+    { tag: 'objetos pequenos', ref: 'Akyon, F. C.; Altinuc, S. O.; Temizel, A. (2022). Slicing Aided Hyper Inference and Fine-tuning for Small Object Detection. ICIP.', link: 'https://arxiv.org/abs/2202.06934', porque: 'O SAHI: fatiar a imagem para não perder objeto pequeno.' },
   ],
   quiz: [
-    { p: 'Para que serve a equalização de histograma?', o: ['Remover ruído sal e pimenta', 'Espalhar os níveis de intensidade e aumentar o contraste global', 'Detectar bordas', 'Converter RGB em HSV'], a: 1, e: 'Ela usa o histograma acumulado como curva T(r), redistribuindo os tons pela faixa toda.' },
-    { p: 'Numa transformação gama s = 255·(r/255)^γ, o que um γ = 0,5 faz?', o: ['Escurece a imagem', 'Clareia principalmente os tons escuros', 'Inverte as cores', 'Não muda nada'], a: 1, e: 'Com γ < 1, valores pequenos sobem bastante. A imagem clareia, principalmente nas sombras.' },
-    { p: 'Imagem com ruído sal e pimenta. Qual filtro 3×3 costuma funcionar melhor?', o: ['Média', 'Mediana', 'Laplaciano', 'Sobel'], a: 1, e: 'A mediana descarta os extremos (0 e 255). A média espalha o pixel ruim pelos vizinhos.' },
-    { p: 'Os pesos de um kernel somam 0. O que acontece numa região de cor uniforme?', o: ['Fica branca', 'Fica igual', 'Vai para 0', 'Fica borrada'], a: 2, e: 'Se todos os pixels são iguais a c, a saída é c·(soma dos pesos) = 0. Só as bordas geram resposta.' },
-    { p: 'Você quer remover pontinhos de palha na máscara sem mudar o tamanho das plantas. Qual operação?', o: ['Erosão', 'Dilatação', 'Abertura', 'Fechamento'], a: 2, e: 'Abertura (erosão seguida de dilatação) remove o que é menor que o carimbo e devolve o tamanho aproximado do que sobreviveu.' },
+    { p: 'Por que um perceptron sozinho não aprende o XOR?', o: ['falta épocas', 'η muito alto', 'as classes não são separáveis por uma reta', 'os pesos começam em zero'], a: 2, e: 'XOR precisa de duas retas: camada escondida e ativação não linear.' },
+    { p: 'Perda de treino caindo e de validação subindo desde a época 40. Diagnóstico?', o: ['underfitting', 'overfitting', 'vazamento', 'GSD alto'], a: 1, e: 'A rede passou a decorar o treino.' },
+    { p: 'Modelo com P = 0,95 e R = 0,60. Na contagem de cachos, o erro típico é:', o: ['contar a mais', 'contar a menos', 'contar certo', 'não dá para saber'], a: 1, e: 'Revocação baixa: muitos cachos ficam sem caixa.' },
+    { p: 'Qual conjunto se usa para escolher a taxa de aprendizado?', o: ['treino', 'validação', 'teste', 'qualquer um'], a: 1, e: 'O teste só é aberto no fim.' },
+    { p: 'Num vídeo, o detector achou 900 caixas e o rastreador 75 ids. Quantos cachos?', o: ['900', '75', '825', '12'], a: 1, e: 'Cada id é um cacho visto em vários quadros.' },
   ],
-  desafios: [
-    { nivel: 'aquecimento', txt: <>Monte no Lab 2.2 um kernel que detecte só bordas na diagonal (de cima-esquerda para baixo-direita). Quais pesos você usou? A soma dá quanto?</> },
-    { nivel: 'mão na massa', txt: <>Implemente a erosão binária em NumPy puro, sem scikit-image, usando deslocamentos da matriz (<code>np.roll</code> ou fatiamento). Compare o resultado e o tempo com <code>morphology.binary_erosion</code>.</> },
-    { nivel: 'investigação', txt: <>Numa foto de lavoura, calcule a cobertura verde antes e depois de uma abertura com disco de raio 1, 2 e 3. Faça um gráfico raio × cobertura e explique onde a limpeza começa a apagar planta de verdade.</> },
-  ],
-  leitura: [
-    <>GONZALEZ, R. C.; WOODS, R. E. <i>Processamento digital de imagens</i>. 3. ed. Pearson, 2010. Cap. 3 (transformações de intensidade e filtragem espacial) e cap. 9 (processamento morfológico de imagens).</>,
-    <>PEDRINI, H.; SCHWARTZ, W. R. <i>Análise de imagens digitais</i>. Thomson, 2008. Capítulos sobre realce, filtragem e morfologia matemática.</>,
-    <>SOLOMON, C.; BRECKON, T. <i>Fundamentos de processamento digital de imagens</i>. LTC, 2013. Capítulos de realce e morfologia, com exemplos em Matlab fáceis de traduzir para Python.</>,
-    <>BERLANDA, C. A. G. <i>Contagem de aves de corte em um aviário através do processamento digital de imagens</i>. Trabalho de Diplomação (Tecnologia em Análise e Desenvolvimento de Sistemas), UTFPR, Medianeira, 2015.</>,
+  entregas: [
+    <><b>Notebook de treino</b> que roda do zero, com versões, semente e parâmetros registrados.</>,
+    <><b>Resultados</b>: curvas, P, R, mAP50, mAP50-95, matriz de confusão e erro de contagem.</>,
+    <><b>Domínio externo</b>: avaliação em outro grupo (variedade, propriedade, data) e análise de pelo menos 5 erros.</>,
+    <><b>Relatório em formato de artigo</b> e demonstração de inferência em imagem ou vídeo na defesa.</>,
   ],
 }
