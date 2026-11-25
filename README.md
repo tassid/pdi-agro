@@ -2,7 +2,7 @@
 
 Guia interativo de **2 aulas de 4 horas** (240 min cada, com intervalo de 20 min), de Tassiane Anzolin (PPGTCA/UTFPR Medianeira), seguindo o plano de aula "Visão Computacional Aplicada com CVAT e YOLO".
 
-Cada bloco da aula tem **slides integrados → teoria → exemplo → prática**. As figuras são geradas em Python a partir de **fotos reais** de dois bancos públicos (WGISD da Embrapa e CWFID), e os laboratórios rodam no navegador ou no Colab.
+Cada bloco da aula tem **slides integrados → teoria → exemplo → prática → exercícios com gabarito**. As figuras são geradas em Python a partir de **fotos reais** de dois bancos públicos (WGISD da Embrapa e CWFID), e os laboratórios rodam no navegador ou no Colab.
 
 | Aula | Blocos | Notebook |
 |---|---|---|

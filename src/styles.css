@@ -669,3 +669,20 @@ table.tbl { border-collapse: collapse; font-size: 0.85rem; width: 100%; font-var
 .mini-blocos small { color: var(--ink-faint); font-family: var(--f-mono); }
 @media (max-width: 760px) { .aula-card { grid-template-columns: 1fr; } }
 .slide-footer span:first-child { color: #fff; }
+.exs { margin-top: 14px; background: #fafaf5; border: 1px solid var(--rule); padding: 12px 14px; }
+.exs-t { display: flex; align-items: center; gap: 6px; font-family: var(--f-display); color: #1d6b1d; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.9rem; margin-bottom: 8px; }
+.exs ol { padding-left: 1.3em; display: grid; gap: 14px; margin: 0; }
+.ex-nivel { font-family: var(--f-mono); font-size: 0.65rem; text-transform: uppercase; padding: 1px 6px; margin-right: 6px; color: #fff; background: #228b22; }
+.ex-nivel.médio { background: #b8860b; } .ex-nivel.desafio { background: #b22222; }
+.ex-q { display: inline; }
+.ex-btn { margin-top: 6px; font-size: 0.75rem; padding: 3px 8px; }
+.ex-r { margin-top: 6px; padding: 8px 10px; background: #e9f5e9; border-left: 4px solid #228b22; font-size: 0.92rem; display: grid; gap: 6px; }
+.ficha summary { cursor: pointer; font-family: var(--f-mono); font-size: 0.75rem; color: #131a9f; }
+.ficha ol { padding-left: 1.2em; font-size: 0.85rem; display: grid; gap: 3px; margin: 6px 0 0; }
+.conv-grid { display: grid; grid-template-columns: repeat(3, 52px); gap: 4px; }
+.conv-grid input { width: 52px; font-family: var(--f-mono); text-align: center; padding: 4px; border: 1px solid var(--rule); }
+.lab-canvas { width: 100%; height: auto; image-rendering: auto; background: #eee; }
+.prose h4, .etapa-body h4 { font-family: var(--f-display); font-weight: 400; color: #3940b3; font-size: 1.05rem; margin: 10px 0 0; }
+.slide-deck .sl-grid { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); }
+.slide-deck .sl-fig img { max-height: 72vh; }
+.slide-deck .sl-grid.sl-only-text { grid-template-columns: 1fr; max-width: 70ch; margin: 0 auto; }

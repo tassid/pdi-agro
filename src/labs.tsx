@@ -234,3 +234,125 @@ export function LabSplit() {
     </Lab>
   )
 }
+
+/* ---------- GSD e tamanho do objeto em pixels ---------- */
+
+export function LabGSD() {
+  const [alt, setAlt] = useState(40)
+  const [focal, setFocal] = useState(8.8)
+  const [pix, setPix] = useState(2.4)
+  const [largImg, setLargImg] = useState(5472)
+  const [obj, setObj] = useState(15)
+  const [imgsz, setImgsz] = useState(640)
+  const gsd = (alt * pix) / focal / 10 // cm/px  (alt m, pix µm, focal mm → (m·µm/mm) = mm → /10 = cm)
+  const px = obj / gsd
+  const pxRede = px * (imgsz / largImg)
+  const cor = pxRede < 8 ? 'var(--bad)' : pxRede < 16 ? '#b8860b' : 'var(--ok)'
+  return (
+    <Lab n="1.3c" title="Calculadora de GSD: o objeto ainda tem pixels quando chega na rede?" desc="Valores iniciais de um drone com sensor de 1 polegada (20 MP). Mude a altura de voo e o imgsz e veja quantos pixels sobram para o objeto.">
+      <div className="lab-cols">
+        <Slider id="g-alt" label="altura de voo" value={alt} min={5} max={120} onChange={setAlt} fmt={(v) => `${v} m`} />
+        <Slider id="g-foc" label="distância focal" value={focal} min={4} max={35} step={0.1} onChange={setFocal} fmt={(v) => `${v.toFixed(1)} mm`} />
+        <Slider id="g-pix" label="tamanho do pixel do sensor" value={pix} min={0.8} max={6} step={0.1} onChange={setPix} fmt={(v) => `${v.toFixed(1)} µm`} />
+        <Slider id="g-larg" label="largura da foto" value={largImg} min={1000} max={8000} step={4} onChange={setLargImg} fmt={(v) => `${v} px`} />
+        <Slider id="g-obj" label="tamanho do objeto" value={obj} min={1} max={200} onChange={setObj} fmt={(v) => `${v} cm`} />
+        <Slider id="g-imgsz" label="imgsz no treino" value={imgsz} min={320} max={1920} step={32} onChange={setImgsz} fmt={(v) => `${v} px`} />
+      </div>
+      <div className="caso-nums">
+        <div className="stat"><b>{gsd.toFixed(2)} cm/px</b><span>GSD = altura × pixel ÷ focal</span></div>
+        <div className="stat"><b>{px.toFixed(0)} px</b><span>objeto na foto original</span></div>
+        <div className="stat"><b style={{ color: cor }}>{pxRede.toFixed(1)} px</b><span>objeto depois de reduzir para imgsz</span></div>
+        <div className="stat"><b>{((largImg * gsd) / 100).toFixed(1)} m</b><span>largura coberta no chão</span></div>
+      </div>
+      <p className="fig-note">Regra prática: abaixo de uns 8 a 10 pixels na entrada da rede, a detecção fica muito difícil. Saídas: voar mais baixo, subir o imgsz ou fatiar (SAHI).</p>
+    </Lab>
+  )
+}
+
+/* ---------- métricas a partir de TP, FP, FN ---------- */
+
+export function LabMetricas() {
+  const [tp, setTp] = useState(80)
+  const [fp, setFp] = useState(15)
+  const [fn, setFn] = useState(20)
+  const P = tp / Math.max(1, tp + fp), R = tp / Math.max(1, tp + fn), F1 = (2 * P * R) / Math.max(1e-9, P + R)
+  return (
+    <Lab n="2.4" title="Precisão, revocação e F1 a partir da contagem de acertos" desc="Simule um talhão com 100 cachos. Mexa nos erros e veja qual métrica reage.">
+      <div className="lab-cols">
+        <Slider id="m-tp" label="TP (cachos achados)" value={tp} min={0} max={150} onChange={setTp} />
+        <Slider id="m-fp" label="FP (caixas em folha, sombra, repetidas)" value={fp} min={0} max={150} onChange={setFp} />
+        <Slider id="m-fn" label="FN (cachos sem caixa)" value={fn} min={0} max={150} onChange={setFn} />
+      </div>
+      <div className="caso-nums">
+        <div className="stat"><b>{pct(P)}</b><span>precisão = TP / (TP + FP)</span></div>
+        <div className="stat"><b>{pct(R)}</b><span>revocação = TP / (TP + FN)</span></div>
+        <div className="stat"><b>{pct(F1)}</b><span>F1 = 2PR / (P + R)</span></div>
+        <div className="stat"><b>{tp + fp - (tp + fn) > 0 ? '+' : ''}{tp + fp - (tp + fn)}</b><span>erro de contagem (previstos − reais)</span></div>
+      </div>
+      <p className="fig-note">Repare: com FP = FN o erro de contagem é zero, mesmo com precisão e revocação ruins. Por isso contagem certa não prova detector bom.</p>
+    </Lab>
+  )
+}
+
+/* ---------- convolução ao vivo numa foto real ---------- */
+
+const KERNELS: Record<string, number[]> = {
+  identidade: [0, 0, 0, 0, 1, 0, 0, 0, 0],
+  'Sobel x': [-1, 0, 1, -2, 0, 2, -1, 0, 1],
+  'Sobel y': [-1, -2, -1, 0, 0, 0, 1, 2, 1],
+  Laplaciano: [0, 1, 0, 1, -4, 1, 0, 1, 0],
+  média: [1, 1, 1, 1, 1, 1, 1, 1, 1].map((v) => v / 9),
+  realce: [0, -1, 0, -1, 5, -1, 0, -1, 0],
+}
+
+export function LabConv() {
+  const [k, setK] = useState<number[]>(KERNELS['Sobel x'])
+  const [relu, setRelu] = useState<'ReLU' | 'valor absoluto'>('valor absoluto')
+  const [src, setSrc] = useState<{ g: Float32Array; w: number; h: number } | null>(null)
+  const [cnv, setCnv] = useState<HTMLCanvasElement | null>(null)
+  useEffect(() => {
+    const im = new Image()
+    im.src = './fig/lab_iou.jpg'
+    im.onload = () => {
+      const w = 360, h = Math.round((im.height / im.width) * 360)
+      const c = document.createElement('canvas'); c.width = w; c.height = h
+      const ctx = c.getContext('2d')!; ctx.drawImage(im, 0, 0, w, h)
+      const d = ctx.getImageData(0, 0, w, h).data; const g = new Float32Array(w * h)
+      for (let i = 0; i < w * h; i++) g[i] = 0.299 * d[4 * i] + 0.587 * d[4 * i + 1] + 0.114 * d[4 * i + 2]
+      setSrc({ g, w, h })
+    }
+  }, [])
+  useEffect(() => {
+    if (!src || !cnv) return
+    const { g, w, h } = src; const out = new Float32Array(w * h); let mx = 1
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      let s = 0
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) s += g[(y + j) * w + x + i] * k[(j + 1) * 3 + i + 1]
+      s = relu === 'ReLU' ? Math.max(0, s) : Math.abs(s); out[y * w + x] = s; if (s > mx) mx = s
+    }
+    cnv.width = w; cnv.height = h
+    const ctx = cnv.getContext('2d')!; const id = ctx.createImageData(w, h)
+    const escala = k.reduce((a, b) => a + b, 0) > 0.5 ? 1 : 255 / mx
+    for (let i = 0; i < w * h; i++) { const v = Math.min(255, out[i] * escala); id.data[4 * i] = id.data[4 * i + 1] = id.data[4 * i + 2] = v; id.data[4 * i + 3] = 255 }
+    ctx.putImageData(id, 0, 0)
+  }, [src, cnv, k, relu])
+  return (
+    <Lab n="2.2b" title="Convolução ao vivo num cacho real" desc="Escolha um kernel clássico ou digite os 9 pesos. É exatamente o que um neurônio de uma camada convolucional faz, com pesos aprendidos em vez de digitados.">
+      <div className="lab-cols two">
+        <canvas ref={setCnv} className="lab-canvas" />
+        <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {Object.keys(KERNELS).map((n) => <button key={n} className="btn ghost" onClick={() => setK(KERNELS[n])}>{n}</button>)}
+          </div>
+          <div className="conv-grid">
+            {k.map((v, i) => (
+              <input key={i} type="number" step={0.1} value={Number(v.toFixed(2))} onChange={(e) => setK(k.map((x, j) => (j === i ? +e.target.value : x)))} />
+            ))}
+          </div>
+          <Seg value={relu} options={['valor absoluto', 'ReLU'] as const} onChange={setRelu} label="depois da soma" />
+          <p className="fig-note">Com ReLU, só as bordas num sentido sobrevivem (escuro para claro). Uma CNN usa dezenas de kernels por camada para cobrir todos os sentidos.</p>
+        </div>
+      </div>
+    </Lab>
+  )
+}

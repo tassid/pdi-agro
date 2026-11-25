@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FlaskConical, Lightbulb, Maximize2, Presentation, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, PenLine, ChevronLeft, ChevronRight, ExternalLink, FlaskConical, Lightbulb, Maximize2, Presentation, X } from 'lucide-react'
 import { Quiz, type Q } from './ui'
 
 /* ---------- modelo ---------- */
@@ -22,9 +22,12 @@ export type Bloco = {
   teoria: React.ReactNode
   exemplo: React.ReactNode
   pratica: React.ReactNode
+  exercicios?: Ex[]
 }
 
-export type Artigo = { ref: string; link: string; tag: string; porque: string }
+export type Ex = { q: React.ReactNode; r: React.ReactNode; nivel?: 'básico' | 'médio' | 'desafio' }
+
+export type Artigo = { ref: string; link: string; tag: string; porque: string; br?: boolean; perguntas?: string[] }
 
 export type Aula = {
   id: string
@@ -70,6 +73,26 @@ function Etapa({ k, children }: { k: keyof typeof ETAPA; children: React.ReactNo
         <span className="etapa-n">{e.n}</span> {e.icon} {e.t}
       </div>
       <div className="prose etapa-body">{children}</div>
+    </div>
+  )
+}
+
+export function Exercicios({ itens }: { itens: Ex[] }) {
+  const [abertos, setAbertos] = useState<Set<number>>(new Set())
+  const alterna = (i: number) => setAbertos((a) => { const n = new Set(a); if (n.has(i)) n.delete(i); else n.add(i); return n })
+  return (
+    <div className="exs">
+      <div className="exs-t"><PenLine size={16} /> Exercícios com gabarito</div>
+      <ol>
+        {itens.map((e, i) => (
+          <li key={i}>
+            {e.nivel && <span className={`ex-nivel ${e.nivel}`}>{e.nivel}</span>}
+            <div className="ex-q">{e.q}</div>
+            <button className="btn ghost ex-btn" onClick={() => alterna(i)}>{abertos.has(i) ? 'esconder gabarito' : 'ver gabarito'}</button>
+            {abertos.has(i) && <div className="ex-r">{e.r}</div>}
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }
@@ -345,7 +368,10 @@ export function AulaPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?:
                 <SlidesDoBloco b={b} onOpen={(i) => setDeck(inicio[b.id] + 1 + i)} />
                 <Etapa k="teoria">{b.teoria}</Etapa>
                 <Etapa k="exemplo">{b.exemplo}</Etapa>
-                <Etapa k="pratica">{b.pratica}</Etapa>
+                <Etapa k="pratica">
+                  {b.pratica}
+                  {b.exercicios && <Exercicios itens={b.exercicios} />}
+                </Etapa>
               </section>
               {b.id === aula.intervaloDepois && <div className="intervalo">☕ Intervalo de 20 minutos</div>}
             </React.Fragment>
@@ -355,9 +381,15 @@ export function AulaPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?:
             <div className="artigos">
               {aula.artigos.map((a) => (
                 <article key={a.ref} className="artigo">
-                  <span className="artigo-tag">{a.tag}</span>
+                  <span className="artigo-tag">{a.tag}{a.br ? ' · Brasil' : ''}</span>
                   <p className="artigo-ref">{a.ref}</p>
                   <p>{a.porque}</p>
+                  {a.perguntas && (
+                    <details className="ficha">
+                      <summary>ficha de leitura crítica</summary>
+                      <ol>{a.perguntas.map((q) => <li key={q}>{q}</li>)}</ol>
+                    </details>
+                  )}
                   <a href={a.link} target="_blank" rel="noreferrer">abrir <ExternalLink size={12} /></a>
                 </article>
               ))}
