@@ -47,7 +47,7 @@ export function LabIoU() {
   const v = iou(g, p)
   const ok = v >= lim
   return (
-    <Lab n="1.3" title="Arraste a caixa prevista sobre um cacho real" desc="A caixa verde é a anotação do WGISD. Mexa na caixa prevista e veja quando ela deixa de contar como acerto.">
+    <Lab n="1.3" title="IoU entre uma previsão e uma anotação do WGISD" desc="A caixa verde corresponde à anotação original. Os controles deslocam e redimensionam a caixa prevista; observe a variação do IoU e a classificação como TP ou FP.">
       <div className="lab-cols two">
         <svg viewBox={`0 0 ${d.iou.w} ${d.iou.h}`} className="lab-img">
           <image href="./fig/lab_iou.jpg" width={d.iou.w} height={d.iou.h} />
@@ -60,7 +60,7 @@ export function LabIoU() {
           <Slider id="iou-esc" label="tamanho da caixa prevista" value={esc} min={0.4} max={2} step={0.05} onChange={setEsc} fmt={(x) => `${x.toFixed(2)}×`} />
           <Slider id="iou-lim" label="limiar de IoU para acerto" value={lim} min={0.3} max={0.95} step={0.05} onChange={setLim} fmt={(x) => x.toFixed(2)} />
           <div className="stat big"><b style={{ color: ok ? 'var(--ok)' : 'var(--bad)' }}>IoU = {v.toFixed(3)}</b><span>{ok ? 'verdadeiro positivo (TP)' : 'falso positivo (FP) e o cacho vira falso negativo (FN)'}</span></div>
-          <p className="fig-note">Tente: com o limiar em 0,5 um deslocamento de 25% ainda passa. No mAP50-95, a mesma caixa é avaliada até 0,95, onde quase nada passa.</p>
+          <p className="fig-note">Com limiar 0,5, deslocamentos moderados ainda produzem correspondência; no mAP50-95, a mesma previsão é avaliada também em limiares de até 0,95.</p>
         </div>
       </div>
     </Lab>
@@ -90,7 +90,7 @@ export function LabNMS() {
   const mostrar = cru === 'saída bruta' ? d.nms.dets : r.k
   const P = r.tp / Math.max(1, r.tp + r.fp), R = r.tp / d.nms.gt.length
   return (
-    <Lab n="1.3b" title="Limiar de confiança e NMS numa foto de vinhedo" desc="As caixas vêm de um detector simulado sobre os cachos reais anotados. Ache os limiares que equilibram precisão e revocação.">
+    <Lab n="1.3b" title="Limiar de confiança e NMS" desc="Previsões simuladas a partir das anotações de uma imagem do WGISD. Analise o efeito dos dois limiares sobre precisão e revocação.">
       <svg viewBox={`0 0 ${d.nms.w} ${d.nms.h}`} className="lab-img">
         <image href="./fig/lab_nms.jpg" width={d.nms.w} height={d.nms.h} />
         {mostrar.map((x, i) => (
@@ -123,7 +123,7 @@ export function LabConversor() {
   const yolo = [(x1 + x2) / 2 / W, (y1 + y2) / 2 / H, (x2 - x1) / W, (y2 - y1) / H]
   const invalido = x2 <= x1 || y2 <= y1 || x1 < 0 || y1 < 0 || x2 > W || y2 > H
   return (
-    <Lab n="1.2" title="Conversor xyxy → COCO → YOLO" desc="Os valores iniciais são de um cacho de Cabernet Franc do WGISD (figura acima). Troque e confira a conta no caderno.">
+    <Lab n="1.2" title="Conversor xyxy → COCO → YOLO" desc="Valores iniciais correspondentes à caixa da Figura 11. Altere os valores para verificar as conversões calculadas manualmente.">
       <div className="lab-cols">
         <label className="ctl">largura da imagem<input type="number" value={W} onChange={(e) => setW(+e.target.value)} /></label>
         <label className="ctl">altura da imagem<input type="number" value={H} onChange={(e) => setH(+e.target.value)} /></label>
@@ -175,7 +175,7 @@ export function LabPerceptron() {
     linha = <line x1={S(xa)} y1={S(-0.5)} x2={S(xa)} y2={S(1.5)} stroke="#131a9f" strokeWidth={3} />
   }
   return (
-    <Lab n="2.2" title="Treine um perceptron à mão" desc="Cada clique aplica a regra w ← w + η·(y − ŷ)·x em um exemplo. No XOR, a reta nunca para de mexer.">
+    <Lab n="2.2" title="Treinamento passo a passo do perceptron" desc="Cada passo aplica a regra w ← w + η·(y − ŷ)·x a um exemplo. Para o XOR, a fronteira não se estabiliza.">
       <div className="lab-cols two">
         <svg viewBox="0 0 300 300" className="lab-img" style={{ maxWidth: 320, background: '#fff' }}>
           <rect x={30} y={30} width={240} height={240} fill="#f7f7fb" stroke="#ddd" />
@@ -220,7 +220,7 @@ export function LabSplit() {
   }, [modo, seed])
   const vaz = new Set(split.filter((f) => f.set === 'teste').map((f) => f.voo).filter((g) => split.some((o) => o.voo === g && o.set === 'treino'))).size
   return (
-    <Lab n="1.5" title="Onde o vazamento aparece" desc="30 fotos, 5 variedades, 2 dias de coleta por variedade (A e B). Fotos do mesmo dia são quase iguais: se uma cai no treino e a vizinha no teste, a nota do teste mente.">
+    <Lab n="1.5" title="Partição aleatória e partição por grupo" desc="Simulação com 30 imagens de 5 variedades e 2 sessões de coleta por variedade (A e B). Imagens da mesma sessão são dependentes; sua presença em treino e teste caracteriza vazamento.">
       <div className="lab-cols">
         <Seg value={modo} options={['aleatório', 'por grupo'] as const} onChange={setModo} label="como dividir" />
         <button className="btn" onClick={() => setSeed(seed + 1)}>sortear de novo</button>
@@ -249,7 +249,7 @@ export function LabGSD() {
   const pxRede = px * (imgsz / largImg)
   const cor = pxRede < 8 ? 'var(--bad)' : pxRede < 16 ? '#b8860b' : 'var(--ok)'
   return (
-    <Lab n="1.3c" title="Calculadora de GSD: o objeto ainda tem pixels quando chega na rede?" desc="Valores iniciais de um drone com sensor de 1 polegada (20 MP). Mude a altura de voo e o imgsz e veja quantos pixels sobram para o objeto.">
+    <Lab n="1.3c" title="Cálculo do GSD e da resolução efetiva do objeto" desc="Valores iniciais de um sensor de 1 polegada com 20 MP. Analise o efeito da altura de voo e de imgsz sobre o número de pixels do objeto na entrada da rede.">
       <div className="lab-cols">
         <Slider id="g-alt" label="altura de voo" value={alt} min={5} max={120} onChange={setAlt} fmt={(v) => `${v} m`} />
         <Slider id="g-foc" label="distância focal" value={focal} min={4} max={35} step={0.1} onChange={setFocal} fmt={(v) => `${v.toFixed(1)} mm`} />
@@ -264,7 +264,7 @@ export function LabGSD() {
         <div className="stat"><b style={{ color: cor }}>{pxRede.toFixed(1)} px</b><span>objeto depois de reduzir para imgsz</span></div>
         <div className="stat"><b>{((largImg * gsd) / 100).toFixed(1)} m</b><span>largura coberta no chão</span></div>
       </div>
-      <p className="fig-note">Regra prática: abaixo de uns 8 a 10 pixels na entrada da rede, a detecção fica muito difícil. Saídas: voar mais baixo, subir o imgsz ou fatiar (SAHI).</p>
+      <p className="fig-note">Quanto menor o número de pixels por objeto, menor a informação disponível ao detector. As alternativas incluem reduzir a altura de voo, aumentar imgsz ou realizar inferência por fatias (AKYON; ALTINUC; TEMIZEL, 2022).</p>
     </Lab>
   )
 }
@@ -277,7 +277,7 @@ export function LabMetricas() {
   const [fn, setFn] = useState(20)
   const P = tp / Math.max(1, tp + fp), R = tp / Math.max(1, tp + fn), F1 = (2 * P * R) / Math.max(1e-9, P + R)
   return (
-    <Lab n="2.4" title="Precisão, revocação e F1 a partir da contagem de acertos" desc="Simule um talhão com 100 cachos. Mexa nos erros e veja qual métrica reage.">
+    <Lab n="2.4" title="Precisão, revocação, F1 e erro de contagem" desc="Varie TP, FP e FN e observe a resposta de cada métrica.">
       <div className="lab-cols">
         <Slider id="m-tp" label="TP (cachos achados)" value={tp} min={0} max={150} onChange={setTp} />
         <Slider id="m-fp" label="FP (caixas em folha, sombra, repetidas)" value={fp} min={0} max={150} onChange={setFp} />
@@ -289,7 +289,7 @@ export function LabMetricas() {
         <div className="stat"><b>{pct(F1)}</b><span>F1 = 2PR / (P + R)</span></div>
         <div className="stat"><b>{tp + fp - (tp + fn) > 0 ? '+' : ''}{tp + fp - (tp + fn)}</b><span>erro de contagem (previstos − reais)</span></div>
       </div>
-      <p className="fig-note">Repare: com FP = FN o erro de contagem é zero, mesmo com precisão e revocação ruins. Por isso contagem certa não prova detector bom.</p>
+      <p className="fig-note">Quando FP = FN, o erro de contagem é nulo independentemente de precisão e revocação; a contagem correta, isoladamente, não caracteriza o desempenho do detector.</p>
     </Lab>
   )
 }
@@ -337,7 +337,7 @@ export function LabConv() {
     ctx.putImageData(id, 0, 0)
   }, [src, cnv, k, relu])
   return (
-    <Lab n="2.2b" title="Convolução ao vivo num cacho real" desc="Escolha um kernel clássico ou digite os 9 pesos. É exatamente o que um neurônio de uma camada convolucional faz, com pesos aprendidos em vez de digitados.">
+    <Lab n="2.2b" title="Convolução sobre uma imagem do WGISD" desc="Selecione um núcleo clássico ou defina os nove pesos. A operação corresponde à de um canal de uma camada convolucional, cujos pesos seriam aprendidos.">
       <div className="lab-cols two">
         <canvas ref={setCnv} className="lab-canvas" />
         <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
@@ -350,7 +350,7 @@ export function LabConv() {
             ))}
           </div>
           <Seg value={relu} options={['valor absoluto', 'ReLU'] as const} onChange={setRelu} label="depois da soma" />
-          <p className="fig-note">Com ReLU, só as bordas num sentido sobrevivem (escuro para claro). Uma CNN usa dezenas de kernels por camada para cobrir todos os sentidos.</p>
+          <p className="fig-note">Com ReLU, apenas respostas positivas (transições em um sentido) são mantidas; camadas convolucionais usam muitos núcleos para representar diferentes orientações.</p>
         </div>
       </div>
     </Lab>

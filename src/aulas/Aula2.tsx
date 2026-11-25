@@ -6,46 +6,46 @@ import { LabConv, LabMetricas, LabPerceptron } from '../labs'
 export const aula2: Aula = {
   id: 'aula2',
   n: 2,
-  titulo: 'Redes neurais, treinamento e avaliação em campo',
-  ideia: 'Uma rede é um empilhado de perceptrons com filtros aprendidos. Treinar é fácil; difícil é saber se o número que sai no fim vale para a próxima fazenda.',
-  chips: ['perceptron e XOR', 'MLP e retropropagação', 'descida do gradiente', 'convolução e pooling', 'transfer learning', 'perdas do YOLO', 'letterbox e augmentation', 'GSD e SAHI', 'P, R, F1, AP, mAP', 'erro de contagem', 'early stopping', 'grade × aleatória', 'mudança de domínio', 'rastreamento', 'exportação'],
+  titulo: 'Redes neurais, treinamento e avaliação de detectores',
+  ideia:
+    'Esta aula apresenta os fundamentos das redes neurais convolucionais, o procedimento de treinamento de um detector e os critérios para avaliá-lo, com ênfase na distinção entre desempenho no domínio de treinamento e desempenho sob mudança de distribuição.',
+  chips: ['perceptron', 'perceptron multicamadas', 'retropropagação', 'descida do gradiente', 'convolução', 'transferência de aprendizado', 'funções de perda', 'aumento de dados', 'métricas de detecção', 'erro de contagem', 'seleção de hiperparâmetros', 'mudança de distribuição', 'rastreamento', 'reprodutibilidade'],
   objetivos: [
-    'Aplicar a regra de atualização do perceptron e explicar, com a geometria, por que uma camada não resolve o XOR e uma camada escondida resolve.',
-    'Descrever a descida do gradiente e a retropropagação, e o efeito da taxa de aprendizado.',
-    'Calcular uma convolução à mão, relacionar filtros aprendidos aos filtros clássicos de PDI e justificar o transfer learning.',
-    'Configurar e executar um treino YOLO, lendo as perdas, o letterbox, o augmentation, a agenda da taxa de aprendizado e a parada antecipada.',
-    'Diagnosticar underfitting e overfitting pelas curvas e calcular precisão, revocação, F1, AP, mAP50, mAP50-95 e erro de contagem.',
-    'Escolher hiperparâmetros só com a validação, comparando busca em grade e aleatória.',
-    'Avaliar o modelo num domínio diferente do treino, contar objetos em vídeo com rastreamento e exportar o modelo de forma reprodutível.',
+    'Aplicar a regra de atualização do perceptron e explicar, geometricamente, a limitação de modelos lineares e o papel das camadas ocultas com ativação não linear.',
+    'Descrever a descida do gradiente e a retropropagação, e analisar o efeito da taxa de aprendizado.',
+    'Calcular uma convolução, relacionar filtros aprendidos a filtros clássicos de processamento de imagens e fundamentar a transferência de aprendizado.',
+    'Configurar e executar o treinamento de um detector, interpretando funções de perda, pré-processamento, aumento de dados, agenda da taxa de aprendizado e parada antecipada.',
+    'Calcular e interpretar precisão, revocação, F1, AP, mAP50, mAP50-95 e erro de contagem, e selecionar hiperparâmetros exclusivamente no conjunto de validação.',
+    'Avaliar o modelo sob mudança de distribuição, estimar contagens em vídeo com rastreamento e documentar o experimento de forma reprodutível.',
   ],
   intervaloDepois: 'b23',
   notebook: {
     nome: 'Aula2_Treino_Avaliacao_Dominio.ipynb',
     arquivo: 'Aula2_Treino_Avaliacao_Dominio.ipynb',
-    descricao: 'Treina um YOLO no WGISD com divisão por variedade, lê as curvas, mede P, R, mAP e erro de contagem, testa numa variedade nunca vista, rastreia e exporta.',
+    descricao: 'Treinamento de um detector no WGISD com partição por variedade, análise das curvas, métricas, erro de contagem, avaliação em variedade não vista, teste de robustez, rastreamento e exportação.',
   },
   blocos: [
     /* ============================================================ 2.1 */
     {
       id: 'b21',
       cod: '2.1',
-      titulo: 'Preparação do ambiente',
+      titulo: 'Preparação do ambiente computacional',
       min: 15,
       tipo: 'lab',
       slides: [
-        { titulo: 'Checklist antes de treinar', pontos: ['Ambiente de execução → GPU (T4)', '!nvidia-smi mostra a placa', 'pip install ultralytics e anotar a versão', 'Clonar o WGISD e rodar a célula de preparação', 'Abrir o data.yaml e conferir caminhos e classes'] },
-        { titulo: 'Por que GPU', pontos: ['Uma convolução é a mesma conta repetida em milhões de pixels', 'A GPU faz milhares dessas contas em paralelo', 'yolo11n em 640 px: cerca de 6,5 GFLOPs por imagem', 'Na CPU, 40 épocas levam horas; na T4, minutos'] },
-        { titulo: 'Reprodutibilidade começa aqui', pontos: ['Versões: Python, PyTorch, CUDA, Ultralytics', 'Semente fixa (seed=42) e deterministic=True', 'Divisão salva em arquivo, não só em memória', 'Tudo isso vai para o relatório'] },
+        { titulo: 'Verificação do ambiente', pontos: ['Ambiente de execução com GPU', 'Registro das versões de Python, PyTorch, CUDA e Ultralytics', 'Obtenção do WGISD e geração do arquivo de configuração', 'Conferência dos caminhos e das classes'] },
+        { titulo: 'Justificativa do uso de GPU', pontos: ['A convolução repete a mesma operação em todas as posições da imagem', 'GPUs executam essas operações em paralelo', 'O custo por imagem é expresso em GFLOPs e depende do modelo e da resolução'] },
+        { titulo: 'Requisitos de reprodutibilidade', pontos: ['Versões de software', 'Semente aleatória e modo determinístico', 'Partição registrada em arquivo', 'Parâmetros de treinamento (args.yaml)'] },
       ],
       teoria: (
         <>
           <p>
-            Treino de detector sem GPU leva horas. No Colab, ative a GPU antes de qualquer outra célula, porque trocar o ambiente apaga o que já foi instalado. A GPU acelera porque convolução é a
-            mesma conta repetida em cada pixel: milhares de núcleos fazem essas contas em paralelo.
+            O treinamento de redes convolucionais é dominado por operações de multiplicação e acumulação repetidas em todas as posições da imagem, o que favorece o uso de processadores gráficos. O
+            custo computacional por imagem é usualmente expresso em operações de ponto flutuante (GFLOPs) e cresce com o número de parâmetros e com a resolução de entrada.
           </p>
           <p>
-            Anote as versões do Python, do PyTorch e do Ultralytics: a mesma chamada <code>model.train()</code> pode ter padrões diferentes entre versões (augmentation, otimizador, nomes das perdas).
-            Fixe a semente e salve a divisão dos dados em arquivo. Sem isso, ninguém (nem você daqui a três meses) reproduz o número do relatório.
+            Valores padrão de parâmetros, como transformações de aumento de dados e otimizador, podem variar entre versões das bibliotecas. Por isso, as versões de software, a semente aleatória, a
+            partição dos dados e os parâmetros efetivamente utilizados devem ser registrados, condição necessária para a reprodução dos resultados (KAPOOR; NARAYANAN, 2023).
           </p>
         </>
       ),
@@ -54,89 +54,83 @@ export const aula2: Aula = {
 import ultralytics, torch, sys
 print(sys.version.split()[0], torch.__version__, ultralytics.__version__)
 print("GPU:", torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else "")`} />,
-      pratica: <p>Rodem as células 1 e 2 do notebook. Elas clonam o WGISD, montam a divisão por variedade da Aula 1 e escrevem o <code>data.yaml</code>. Conferir no print: treino com 3 variedades, validação com 1, teste com 1.</p>,
+      pratica: <p>Executar as células 1 e 2 do notebook, que obtêm o WGISD, aplicam a partição por variedade definida na Aula 1 e escrevem o arquivo <code>data.yaml</code>. Verificar no resultado: três variedades no treino, uma na validação e uma no teste.</p>,
       exercicios: [
-        { nivel: 'básico', q: 'O notebook rodou ontem e hoje o mAP mudou 2 pontos sem você mexer em nada. Cite três causas possíveis.', r: <p>Versão nova do Ultralytics ou do PyTorch com padrões diferentes; semente não fixada (ordem das imagens e augmentation aleatórios); divisão dos dados refeita aleatoriamente. Também pode ser não determinismo de operações na GPU.</p> },
+        { nivel: 'básico', q: 'O mesmo notebook, executado em dias diferentes, produziu mAP distintos sem alteração de código. Indicar três causas possíveis.', r: <p>Atualização de versão da biblioteca com padrões diferentes; semente não fixada, alterando a ordem das amostras e o aumento de dados; partição refeita aleatoriamente. Operações não determinísticas em GPU também podem contribuir.</p> },
       ],
     },
     /* ============================================================ 2.2 */
     {
       id: 'b22',
       cod: '2.2',
-      titulo: 'Do perceptron à CNN',
+      titulo: 'Do perceptron às redes convolucionais',
       min: 50,
       tipo: 'conceito',
       slides: [
-        { titulo: 'O perceptron de Rosenblatt', img: 'perceptron_and_or_xor', formula: <>ŷ = degrau(w·x + b) · w ← w + η (y − ŷ) x</>, pontos: ['AND e OR: uma reta separa', 'XOR: nenhuma reta separa'] },
-        { titulo: 'Conta resolvida: OR, primeira época', formula: <>w = (0, 0), b = 0, η = 0,2</>, pontos: ['(0,0), y=0: z=0 → ŷ=0, sem erro', '(0,1), y=1: ŷ=0, erro 1 → w=(0; 0,2), b=0,2', '(1,0), y=1: z=0,2 → ŷ=1, sem erro', '(1,1), y=1: ŷ=1, sem erro', 'Agora (0,0) dá z=0,2 → ŷ=1: a próxima época corrige b'] },
-        { titulo: 'Camada escondida resolve o XOR', img: 'mlp_xor', pontos: ['2 entradas → 4 neurônios tanh → 1 saída sigmoide', 'Fronteira curva, impossível para uma reta', 'Treinado por retropropagação'] },
-        { titulo: 'Funções de ativação', img: 'ativacoes', pontos: ['Sigmoide: suave, mas satura e o gradiente some', 'ReLU: barata, não satura no positivo', 'SiLU = z·sigmoide(z): suave, usada no YOLO'] },
-        { titulo: 'Descida do gradiente', img: 'descida_gradiente', formula: <>w ← w − η ∂L/∂w</>, pontos: ['η pequeno: lento', 'η grande: oscila ou diverge', 'Retropropagação: regra da cadeia, da saída para a entrada'] },
-        { titulo: 'Convolução à mão', img: 'conv_passo', pontos: ['Kernel 3 × 3 desliza sobre a imagem', 'Cada saída = soma dos produtos', 'Na CNN, os 9 números são pesos aprendidos'] },
-        { titulo: 'Filtro escolhido × filtro aprendido', img: 'filtros_conv', pontos: ['Sobel, Laplaciano e média: o que vocês escolhiam em PDI', 'Uma camada de CNN tem dezenas desses, aprendidos'] },
-        { titulo: 'Conv → ReLU → pooling, muitas vezes', img: 'mapas_caracteristicas', pontos: ['Camadas iniciais: bordas e texturas', 'Camadas finais: partes de objeto', 'Pooling reduz o tamanho e aumenta o campo de visão'] },
-        { titulo: 'Por que CNN e não MLP para imagem', pontos: ['MLP em 640 × 640 × 3: 1,2 milhão de entradas por neurônio', 'Conv 3 × 3 × 3 → 1 mapa: 28 pesos, reutilizados em toda a imagem', 'Compartilhamento de pesos: o cacho é cacho em qualquer canto'] },
-        { titulo: 'Transfer learning', pontos: ['Pesos do COCO já sabem bordas, texturas, formas', 'Só as camadas finais precisam aprender "cacho de uva"', 'Menos dados, menos épocas, melhor resultado', 'Cuidado: COCO é urbano; o agro é outro domínio'] },
+        { titulo: 'Perceptron', img: 'perceptron_and_or_xor', formula: <>ŷ = H(w·x + b) · w ← w + η (y − ŷ) x</>, pontos: ['Fronteira de decisão linear (ROSENBLATT, 1958)', 'AND e OR são linearmente separáveis; XOR não é (MINSKY; PAPERT, 1969)'] },
+        { titulo: 'Exemplo resolvido: OR, primeira época', formula: <>w = (0, 0), b = 0, η = 0,2</>, pontos: ['(0,0), y=0: ŷ=0, sem atualização', '(0,1), y=1: ŷ=0; w=(0; 0,2), b=0,2', '(1,0), y=1: z=0,2 → ŷ=1', '(1,1), y=1: ŷ=1', 'Ao fim da época, (0,0) é classificado incorretamente; a época seguinte corrige b'] },
+        { titulo: 'Perceptron multicamadas', img: 'mlp_xor', pontos: ['Camada oculta com ativação não linear', 'Fronteiras de decisão não lineares', 'Treinado por retropropagação (RUMELHART; HINTON; WILLIAMS, 1986)'] },
+        { titulo: 'Funções de ativação', img: 'ativacoes', pontos: ['Sigmoide: saturação e gradientes pequenos', 'ReLU (NAIR; HINTON, 2010)', 'SiLU: z·σ(z) (ELFWING; UCHIBE; DOYA, 2018), empregada na família YOLO'] },
+        { titulo: 'Descida do gradiente', img: 'descida_gradiente', formula: <>w ← w − η ∂L/∂w</>, pontos: ['Taxa pequena: convergência lenta', 'Taxa grande: oscilação ou divergência', 'Gradiente estimado em lotes (descida estocástica)'] },
+        { titulo: 'Convolução discreta', img: 'conv_passo', pontos: ['Soma ponderada sobre uma vizinhança', 'Na rede, os pesos do núcleo são parâmetros', 'Conectividade local e compartilhamento de pesos (LECUN et al., 1998)'] },
+        { titulo: 'Filtros clássicos como caso particular', img: 'filtros_conv', pontos: ['Sobel, Laplaciano e média são núcleos fixos', 'Uma camada convolucional aprende dezenas de núcleos'] },
+        { titulo: 'Hierarquia de características', img: 'mapas_caracteristicas', pontos: ['Convolução → ativação → subamostragem', 'Camadas iniciais: bordas e texturas', 'Camadas profundas: padrões de maior abstração'] },
+        { titulo: 'Transferência de aprendizado', pontos: ['Inicialização com pesos treinados em conjunto amplo (COCO)', 'Camadas iniciais tendem a ser mais transferíveis (YOSINSKI et al., 2014)', 'A transferibilidade diminui com a distância entre domínios'] },
       ],
       teoria: (
         <>
           <h4>Perceptron</h4>
           <p>
-            O <b>perceptron</b> (Rosenblatt, 1958) calcula <code>z = w·x + b</code> e responde 1 se z &gt; 0, senão 0. A regra de aprendizado é: quando erra, mexe os pesos na direção do exemplo,{' '}
-            <code>w ← w + η (y − ŷ) x</code> e <code>b ← b + η (y − ŷ)</code>. Geometricamente, <code>w·x + b = 0</code> é uma reta no plano: o perceptron separa as classes com uma reta. Por isso
-            aprende AND e OR, mas nunca o XOR, cujos pontos (0,1) e (1,0) ficam em diagonais opostas. O teorema de convergência garante que, se existe uma reta, o perceptron a encontra; se não existe,
-            ele oscila para sempre.
+            O perceptron (ROSENBLATT, 1958) calcula <code>z = w·x + b</code> e produz 1 se z &gt; 0 e 0 caso contrário. Os parâmetros são atualizados a cada erro por{' '}
+            <code>w ← w + η (y − ŷ) x</code> e <code>b ← b + η (y − ŷ)</code>. A equação <code>w·x + b = 0</code> define um hiperplano; portanto, o perceptron resolve apenas problemas linearmente
+            separáveis. Funções como AND e OR satisfazem essa condição; o XOR não, limitação analisada por Minsky e Papert (1969). Para conjuntos linearmente separáveis, o algoritmo converge em
+            número finito de atualizações; caso contrário, não converge.
           </p>
-          <h4>MLP e retropropagação</h4>
+          <h4>Perceptron multicamadas e retropropagação</h4>
           <p>
-            Empilhando neurônios numa <b>camada escondida</b> e trocando o degrau por uma função suave (sigmoide, tanh, ReLU, SiLU), a rede vira um <b>MLP</b> e desenha fronteiras curvas. Sem a não
-            linearidade, empilhar camadas seria inútil: a composição de funções lineares é linear.
+            A inclusão de camadas ocultas com funções de ativação não lineares permite representar fronteiras não lineares. Sem a não linearidade, a composição de camadas permanece uma
+            transformação linear. O treinamento minimiza uma função de perda L por descida do gradiente, <code>w ← w − η ∂L/∂w</code>, e as derivadas em relação a todos os parâmetros são obtidas
+            eficientemente pela retropropagação, aplicação sistemática da regra da cadeia (RUMELHART; HINTON; WILLIAMS, 1986). Na prática, o gradiente é estimado sobre lotes de amostras e combinado
+            com momento ou com otimizadores adaptativos (GOODFELLOW; BENGIO; COURVILLE, 2016). A taxa de aprendizado η é, em geral, o hiperparâmetro mais sensível.
           </p>
+          <h4>Redes convolucionais</h4>
           <p>
-            Para treinar, define-se uma <b>perda</b> L (erro quadrático, entropia cruzada) e aplica-se a <b>descida do gradiente</b>: <code>w ← w − η ∂L/∂w</code>. A <b>retropropagação</b> calcula todas
-            essas derivadas de uma vez, aplicando a regra da cadeia da saída para a entrada. A taxa de aprendizado η é o hiperparâmetro mais importante: pequena demais, o treino não sai do lugar;
-            grande demais, oscila ou diverge. Na prática usa-se o gradiente de um <b>lote</b> (batch) de imagens por vez e otimizadores como SGD com momento e AdamW.
-          </p>
-          <h4>Convolução</h4>
-          <p>
-            Para imagem, ligar cada pixel a cada neurônio é inviável: uma entrada de 640 × 640 × 3 tem 1,2 milhão de valores. A <b>CNN</b> usa <b>convolução</b>: um kernel pequeno (3 × 3 × canais)
-            percorre a imagem e calcula, em cada posição, a soma dos produtos. São os mesmos Sobel e Laplaciano da disciplina, só que os números do kernel são <b>pesos aprendidos</b>. Duas
-            propriedades tornam isso eficiente: <b>conectividade local</b> (cada saída olha só a vizinhança) e <b>compartilhamento de pesos</b> (o mesmo kernel em toda a imagem, então um cacho é
-            reconhecido em qualquer canto).
+            Uma camada totalmente conectada sobre uma imagem de 640 × 640 × 3 teria 1,2 milhão de entradas por neurônio. As redes convolucionais exploram a estrutura espacial da imagem por meio de{' '}
+            <b>conectividade local</b> e <b>compartilhamento de pesos</b>: um núcleo de pequena dimensão é aplicado em todas as posições (LECUN et al., 1998). Os filtros de Sobel, Laplaciano e média,
+            usados no processamento clássico, são casos particulares de núcleos fixos; em uma rede, os valores do núcleo são aprendidos.
           </p>
           <p>
-            Tamanho da saída: <code>⌊(N − K + 2P) / S⌋ + 1</code>, com N o lado da entrada, K o kernel, P o padding e S o stride. Uma camada com 64 kernels de 3 × 3 sobre 3 canais tem
-            64 × (3 × 3 × 3 + 1) = 1.792 pesos. Empilham-se blocos <b>conv → ativação → pooling</b> (ou conv com stride 2): os mapas ficam menores e mais numerosos; as primeiras camadas respondem a
-            bordas e cores, as últimas a partes de objeto.
+            A dimensão espacial da saída é <code>⌊(N − K + 2P) / S⌋ + 1</code>, em que N é a dimensão da entrada, K a do núcleo, P o preenchimento e S o passo. Uma camada com 64 núcleos 3 × 3 sobre
+            entrada de 3 canais possui 64 × (3 × 3 × 3 + 1) = 1.792 parâmetros. A composição de blocos de convolução, ativação e subamostragem produz mapas de menor resolução e maior número de
+            canais, associados a padrões progressivamente mais abstratos.
           </p>
-          <h4>Transfer learning</h4>
+          <h4>Transferência de aprendizado</h4>
           <p>
-            Em vez de começar com pesos aleatórios, começamos com os pesos treinados no COCO (cerca de 118 mil imagens de treino, 80 classes). As camadas iniciais já sabem ver bordas e texturas;
-            ajustamos o resto para as nossas classes. É isso que <code>YOLO("yolo11n.pt")</code> faz: a última camada da head é trocada para o nosso número de classes. Com poucos dados, dá para
-            congelar o backbone (<code>freeze=10</code>) e treinar só o resto.
+            Em vez de inicialização aleatória, os parâmetros podem ser inicializados com pesos treinados em um conjunto amplo, como o COCO (LIN et al., 2014). Yosinski et al. (2014) mostram que as
+            características das primeiras camadas tendem a ser gerais e as das últimas, específicas da tarefa, e que a transferibilidade diminui com a distância entre a tarefa de origem e a de
+            destino. Em conjuntos pequenos, o congelamento das primeiras camadas reduz o número de parâmetros ajustados; o efeito dessa escolha deve ser verificado no conjunto de validação.
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="perceptron_and_or_xor" cap="Perceptron treinado de verdade (η = 0,2) nas três portas. No XOR ele termina 30 épocas ainda errando." />
-          <Fig n="mlp_xor" cap="Um MLP 2 → 4 → 1 treinado com retropropagação em NumPy resolve o XOR com uma fronteira curva." />
-          <Fig n="ativacoes" cap="As ativações mais usadas. O YOLO usa SiLU nas camadas convolucionais." />
-          <Fig n="descida_gradiente" cap="30 passos de descida do gradiente numa perda de dois pesos, com três taxas de aprendizado." />
-          <Fig n="conv_passo" cap="Convolução calculada à mão sobre 6 × 6 pixels de um cacho real do WGISD, com o kernel de Sobel." />
-          <Fig n="filtros_conv" cap="Quatro kernels clássicos aplicados a uma foto real do CWFID. Uma CNN aprende dezenas desses por camada." />
-          <Fig n="mapas_caracteristicas" cap="Duas camadas de conv → ReLU → pooling com filtros fixos sobre uma foto do WGISD, para enxergar o que é um mapa de características." />
-          <Callout kind="analogia"><p>O backbone pré-treinado é um agrônomo recém-formado: já sabe o que é folha, sombra e solo. Falta só mostrar como é o cacho desta variedade.</p></Callout>
+          <Fig n="perceptron_and_or_xor" cap="Figura 1. Perceptron treinado (η = 0,2) nas funções AND, OR e XOR. No XOR, o algoritmo não converge após 30 épocas." />
+          <Fig n="mlp_xor" cap="Figura 2. Perceptron multicamadas 2-4-1 treinado por retropropagação (implementação em NumPy) e evolução do erro." />
+          <Fig n="ativacoes" cap="Figura 3. Funções de ativação degrau, sigmoide, ReLU e SiLU." />
+          <Fig n="descida_gradiente" cap="Figura 4. Trinta iterações da descida do gradiente em uma função quadrática de dois parâmetros, com três taxas de aprendizado." />
+          <Fig n="conv_passo" cap="Figura 5. Convolução com o núcleo de Sobel sobre um bloco de 6 × 6 pixels de uma imagem do WGISD." />
+          <Fig n="filtros_conv" cap="Figura 6. Núcleos clássicos aplicados a uma imagem do CWFID." />
+          <Fig n="mapas_caracteristicas" cap="Figura 7. Mapas de características obtidos com filtros fixos (Gabor e Laplaciano), ativação ReLU e subamostragem. Ilustração; em uma rede treinada, os filtros são aprendidos." />
           <Caso
-            tipo="artigo brasileiro"
+            tipo="artigo em periódico"
             titulo="Weed detection in soybean crops using ConvNets"
-            autores="dos Santos Ferreira, Freitas, da Silva, Pistori e Folhes"
-            onde="Computers and Electronics in Agriculture 143 (2017), 314-324"
+            autores="Ferreira, Freitas, da Silva, Pistori e Folhes"
+            onde="Computers and Electronics in Agriculture, v. 143, p. 314-324, 2017"
             link="https://doi.org/10.1016/j.compag.2017.10.027"
-            resumo={<p>Imagens de drone de lavouras de soja segmentadas em superpixels e classificadas em solo, soja, gramínea e folha larga. A ConvNet foi comparada a SVM, AdaBoost e Random Forest alimentados com descritores de forma, cor e textura: exatamente a troca de regra escrita por filtro aprendido deste bloco.</p>}
-            pipeline={['Fotos de VANT sobre soja', 'Segmentação em superpixels', '15.336 segmentos rotulados em 4 classes', 'ConvNet contra SVM, AdaBoost e Random Forest com descritores']}
-            numeros={[{ v: '15.336', l: 'segmentos rotulados' }, { v: '4', l: 'classes' }, { v: '> 98%', l: 'acurácia da ConvNet' }]}
-            discutir={['Classificar superpixels é classificação, detecção ou segmentação?', 'Os segmentos de uma mesma foto foram separados entre treino e teste?']}
+            resumo={<p>Imagens de VANT de lavouras de soja são segmentadas em superpixels e classificadas em solo, soja, gramínea e folha larga. Uma rede convolucional é comparada a SVM, AdaBoost e Random Forest alimentados com descritores de forma, cor e textura, o que permite contrastar características aprendidas e definidas manualmente.</p>}
+            pipeline={['Imagens de VANT em lavouras de soja', 'Segmentação em superpixels', 'Rotulação de segmentos em quatro classes', 'Rede convolucional comparada a classificadores com descritores']}
+            numeros={[{ v: '15.336', l: 'segmentos rotulados' }, { v: '4', l: 'classes' }, { v: '> 98%', l: 'acurácia reportada para a rede convolucional' }]}
+            discutir={['A tarefa formulada é de classificação, detecção ou segmentação?', 'Segmentos de uma mesma imagem foram alocados em conjuntos distintos? Qual o efeito sobre a estimativa?']}
           />
         </>
       ),
@@ -144,181 +138,180 @@ print("GPU:", torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.
         <>
           <LabPerceptron />
           <LabConv />
-          <p><b>No quadro (10 min).</b> Pesos iniciais zero, η = 0,2, porta OR. Façam à mão as duas primeiras épocas e confiram no laboratório.</p>
-          <Code title="Python · MLP do XOR em 15 linhas" code={`import numpy as np
+          <p><b>Exercício no quadro (10 min).</b> Com pesos iniciais nulos, η = 0,2 e a função OR, executar manualmente as duas primeiras épocas e comparar com o laboratório.</p>
+          <Code title="Python · perceptron multicamadas para o XOR" code={`import numpy as np
 X = np.array([[0,0],[0,1],[1,0],[1,1]], float); y = np.array([[0],[1],[1],[0]], float)
 rng = np.random.default_rng(1)
 W1, b1 = rng.normal(size=(2, 4)), np.zeros(4)
 W2, b2 = rng.normal(size=(4, 1)), np.zeros(1)
 sig = lambda z: 1 / (1 + np.exp(-z))
 for it in range(4000):
-    h = np.tanh(X @ W1 + b1); o = sig(h @ W2 + b2)          # ida
-    d_o = (o - y) * o * (1 - o)                              # volta: regra da cadeia
+    h = np.tanh(X @ W1 + b1); o = sig(h @ W2 + b2)          # propagação direta
+    d_o = (o - y) * o * (1 - o)                              # retropropagação
     d_h = d_o @ W2.T * (1 - h**2)
     W2 -= h.T @ d_o; b2 -= d_o.sum(0); W1 -= X.T @ d_h; b1 -= d_h.sum(0)
-print(o.round(2).ravel())                                    # perto de [0, 1, 1, 0]`} />
+print(o.round(2).ravel())`} />
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'Por que empilhar camadas lineares (sem ativação) não resolve o XOR?', r: <p>W₂(W₁x + b₁) + b₂ = (W₂W₁)x + (W₂b₁ + b₂): continua sendo uma função linear, logo uma reta. A não linearidade é que permite dobrar o espaço.</p> },
-        { nivel: 'básico', q: 'Entrada 640 × 640, kernel 3 × 3, padding 1, stride 2. Qual o tamanho da saída?', r: <p>⌊(640 − 3 + 2) / 2⌋ + 1 = 319 + 1 = 320. Cada conv com stride 2 divide o lado por 2.</p> },
-        { nivel: 'médio', q: 'Quantos pesos tem uma camada com 32 kernels 3 × 3 sobre uma entrada de 16 canais? E uma camada densa ligando 80 × 80 × 16 a 32 neurônios?', r: <p>Conv: 32 × (3 × 3 × 16 + 1) = 4.640. Densa: 80 × 80 × 16 × 32 + 32 = 3.276.832, cerca de 700 vezes mais.</p> },
-        { nivel: 'médio', q: 'Calcule a saída do kernel Sobel x [−1 0 1; −2 0 2; −1 0 1] sobre a vizinhança [10 10 50; 10 10 50; 10 10 50].', r: <p>(−10 + 50) + (−20 + 100) + (−10 + 50) = 40 + 80 + 40 = 160: borda vertical forte, do escuro para o claro.</p> },
-        { nivel: 'desafio', q: 'Você tem só 150 fotos anotadas. Que partes do modelo pré-treinado vale congelar e por quê?', r: <p>Congelar o backbone (ou suas primeiras camadas) preserva os filtros genéricos do COCO e reduz o número de pesos ajustados, o que diminui o overfitting com poucos dados. Neck e heads continuam treináveis para aprender a escala e a aparência do cacho. Compare na validação treinar com e sem <code>freeze</code>.</p> },
+        { nivel: 'básico', q: 'Mostrar que a composição de duas camadas lineares sem ativação equivale a uma única camada linear.', r: <p>W₂(W₁x + b₁) + b₂ = (W₂W₁)x + (W₂b₁ + b₂), que é uma transformação afim; a fronteira de decisão continua linear.</p> },
+        { nivel: 'básico', q: 'Calcular a dimensão de saída para entrada 640 × 640, núcleo 3 × 3, preenchimento 1 e passo 2.', r: <p>⌊(640 − 3 + 2) / 2⌋ + 1 = 319 + 1 = 320.</p> },
+        { nivel: 'médio', q: 'Comparar o número de parâmetros de uma camada convolucional com 32 núcleos 3 × 3 sobre 16 canais e de uma camada densa que liga 80 × 80 × 16 entradas a 32 neurônios.', r: <p>Convolucional: 32 × (3 × 3 × 16 + 1) = 4.640. Densa: 80 × 80 × 16 × 32 + 32 = 3.276.832, cerca de 700 vezes mais.</p> },
+        { nivel: 'médio', q: 'Calcular a resposta do núcleo de Sobel horizontal [−1 0 1; −2 0 2; −1 0 1] sobre a vizinhança [10 10 50; 10 10 50; 10 10 50].', r: <p>(−10 + 50) + (−20 + 100) + (−10 + 50) = 160, indicando borda vertical com transição de intensidade baixa para alta.</p> },
+        { nivel: 'desafio', q: 'Com 150 imagens anotadas, discutir quais camadas congelar e como verificar a decisão.', r: <p>Segundo Yosinski et al. (2014), as primeiras camadas são mais gerais; congelá-las reduz o número de parâmetros ajustados e o risco de sobreajuste. A decisão deve ser verificada comparando, no conjunto de validação, o treinamento com e sem congelamento, preferencialmente com mais de uma semente.</p> },
       ],
     },
     /* ============================================================ 2.3 */
     {
       id: 'b23',
       cod: '2.3',
-      titulo: 'Treinamento YOLO e execução na GPU',
+      titulo: 'Treinamento de um detector',
       min: 45,
       tipo: 'conceito',
       slides: [
-        { titulo: 'O que o YOLO minimiza', formula: <>L = λ<sub>box</sub>·L<sub>box</sub> + λ<sub>cls</sub>·L<sub>cls</sub> + λ<sub>dfl</sub>·L<sub>dfl</sub></>, pontos: ['box_loss: 1 − CIoU entre caixa prevista e real', 'cls_loss: entropia cruzada binária por classe', 'dfl_loss: refina a posição de cada borda', 'Pesos padrão: box 7,5 · cls 0,5 · dfl 1,5 (confira na sua versão)'] },
-        { titulo: 'Letterbox: a foto entra quadrada', img: 'letterbox', pontos: ['Reduz mantendo a proporção', 'Completa com cinza', 'As caixas são reescaladas junto'] },
-        { titulo: 'Augmentation já vem ligado', img: 'augmentation_real', pontos: ['Geométrico: as caixas acompanham', 'Fotométrico: as caixas ficam iguais', 'Mosaic mistura 4 fotos: mais contexto, mais objetos pequenos', 'close_mosaic: desliga o mosaic nas últimas 10 épocas'] },
-        { titulo: 'Agenda da taxa de aprendizado', img: 'lr_schedule', pontos: ['Aquecimento nas 3 primeiras épocas', 'Decai até lr0 × lrf', 'Linear ou cosseno'] },
-        { titulo: 'Objeto pequeno: imgsz e SAHI', img: 'sahi_fatias', pontos: ['imgsz=640 encolhe uma foto de 2048 px 3,2 vezes', 'Mais imgsz = mais detalhe, mais memória (batch menor)', 'SAHI fatia a foto e junta com NMS'] },
-        { titulo: 'Os hiperparâmetros que mais importam', pontos: ['model: n, s, m, l, x (tamanho)', 'imgsz: resolução de entrada', 'epochs e patience', 'batch (limitado pela memória)', 'lr0, optimizer', 'augmentation: mosaic, fliplr, hsv_*, scale'] },
-        { titulo: 'O que sai do treino', pontos: ['runs/uva_n/weights/best.pt e last.pt', 'results.csv: perdas e métricas por época', 'args.yaml: todos os parâmetros usados', 'Gráficos: curvas, PR, matriz de confusão, lotes de treino'] },
+        { titulo: 'Funções de perda', formula: <>L = λ<sub>box</sub>·L<sub>box</sub> + λ<sub>cls</sub>·L<sub>cls</sub> + λ<sub>dfl</sub>·L<sub>dfl</sub></>, pontos: ['L_box: baseada em CIoU (ZHENG et al., 2020)', 'L_cls: entropia cruzada binária', 'L_dfl: distribution focal loss (LI et al., 2020)', 'Pesos definidos nos parâmetros de treino da versão utilizada'] },
+        { titulo: 'Redimensionamento com preservação de proporção', img: 'letterbox', pontos: ['Redução até o lado maior igualar imgsz', 'Preenchimento da área restante', 'Reescala correspondente das caixas'] },
+        { titulo: 'Aumento de dados', img: 'augmentation_real', pontos: ['Transformações geométricas alteram as caixas', 'Transformações fotométricas preservam as caixas', 'Mosaico de quatro imagens (BOCHKOVSKIY; WANG; LIAO, 2020)', 'Aplicado somente ao treino (SHORTEN; KHOSHGOFTAAR, 2019)'] },
+        { titulo: 'Agenda da taxa de aprendizado', img: 'lr_schedule', pontos: ['Aquecimento inicial', 'Decaimento linear ou cossenoidal (LOSHCHILOV; HUTTER, 2017)', 'Valores finais definidos por lr0 e lrf'] },
+        { titulo: 'Objetos pequenos', img: 'sahi_fatias', pontos: ['Aumento da resolução de entrada', 'Inferência por fatias com sobreposição (AKYON; ALTINUC; TEMIZEL, 2022)', 'Custo de memória proporcional à área'] },
+        { titulo: 'Hiperparâmetros principais', pontos: ['Escala do modelo', 'Resolução de entrada (imgsz)', 'Épocas e paciência', 'Tamanho do lote', 'Taxa de aprendizado e otimizador', 'Intensidade do aumento de dados'] },
+        { titulo: 'Artefatos do treinamento', pontos: ['best.pt e last.pt', 'results.csv: perdas e métricas por época', 'args.yaml: parâmetros efetivos', 'Gráficos de curvas e lotes de treino'] },
       ],
       teoria: (
         <>
-          <h4>As perdas</h4>
-          <p>O Ultralytics reporta três perdas na detecção:</p>
+          <h4>Funções de perda</h4>
+          <p>Na implementação utilizada (JOCHER; QIU; CHAURASIA, 2023), a perda de detecção combina três termos ponderados:</p>
           <ol>
             <li>
-              <code>box_loss</code>: 1 − CIoU entre a caixa prevista e a real. O <b>CIoU</b> (complete IoU) é o IoU com dois termos a mais: um que penaliza a distância entre os centros e outro que
-              penaliza a diferença de proporção. Assim há gradiente mesmo quando as caixas ainda não se tocam.
+              <b>Perda de localização</b>, baseada no Complete IoU (CIoU), que acrescenta ao IoU termos proporcionais à distância normalizada entre os centros e à diferença de razão de aspecto
+              (ZHENG et al., 2020). Esses termos fornecem gradiente mesmo quando as caixas não se sobrepõem.
             </li>
-            <li><code>cls_loss</code>: entropia cruzada binária entre a probabilidade prevista de cada classe e o alvo.</li>
-            <li><code>dfl_loss</code> (distribution focal loss): em vez de um número para cada borda, a rede prevê uma distribuição sobre posições possíveis, o que refina a localização.</li>
+            <li><b>Perda de classificação</b>, entropia cruzada binária por classe.</li>
+            <li><b>Distribution focal loss</b>, que modela cada borda como uma distribuição discreta sobre posições possíveis (LI et al., 2020).</li>
           </ol>
           <p>
-            A perda total é a soma ponderada (<code>box</code>, <code>cls</code>, <code>dfl</code> nos argumentos de treino). Para decidir qual posição da grade deve aprender qual objeto, os YOLOs
-            recentes usam uma <b>atribuição de alvos</b> que combina a qualidade da classe e o IoU. Nomes e composição mudam entre versões: leia o cabeçalho do <code>results.csv</code>.
+            A atribuição de alvos determina quais posições da grade são responsáveis por cada objeto e combina qualidade de classificação e IoU. A composição e a ponderação desses termos variam entre
+            versões; os valores efetivos devem ser consultados no arquivo <code>args.yaml</code> do treinamento.
           </p>
-          <h4>Pré-processamento e augmentation</h4>
+          <h4>Pré-processamento e aumento de dados</h4>
           <p>
-            Toda imagem entra na rede quadrada, com lado <code>imgsz</code>, por <b>letterbox</b>: reduz mantendo a proporção e completa com cinza. O <b>augmentation</b> é aplicado a cada época, de
-            forma aleatória, só no treino: <code>mosaic</code> (4 fotos em uma), <code>fliplr</code>, variações de HSV, <code>scale</code>, <code>translate</code>, e opcionais como{' '}
-            <code>mixup</code> e <code>copy_paste</code>. Transformações geométricas mudam as caixas; fotométricas não. O mosaic é desligado nas últimas épocas (<code>close_mosaic=10</code>) para o
-            modelo terminar vendo fotos normais.
+            As imagens são redimensionadas preservando a proporção até que o lado maior iguale <code>imgsz</code>, com preenchimento da área restante. O aumento de dados é aplicado aleatoriamente a
+            cada época e somente ao conjunto de treino (SHORTEN; KHOSHGOFTAAR, 2019). Inclui transformações geométricas (espelhamento, escala, translação), que exigem a transformação correspondente das
+            caixas, e fotométricas (variações em HSV), que não as alteram. O mosaico, que combina quatro imagens em uma, foi popularizado pelo YOLOv4 (BOCHKOVSKIY; WANG; LIAO, 2020) e costuma ser
+            desativado nas últimas épocas. A adequação de cada transformação depende do domínio: o espelhamento vertical, por exemplo, é plausível em imagens aéreas ortogonais, mas não em imagens
+            laterais de dossel.
           </p>
           <h4>Otimização</h4>
           <p>
-            A taxa de aprendizado começa com um <b>aquecimento</b> (warmup) e depois decai até <code>lr0 × lrf</code>, de forma linear ou em cosseno. O otimizador padrão é escolhido automaticamente
-            (SGD com momento ou AdamW, conforme o tamanho do treino). <b>Parada antecipada</b>: <code>patience=15</code> encerra o treino depois de 15 épocas sem melhora na métrica de validação (uma
-            combinação de mAP50 e mAP50-95) e o melhor peso fica em <code>best.pt</code>.
+            A taxa de aprendizado é aumentada gradualmente nas primeiras épocas (aquecimento) e, em seguida, reduzida de forma linear ou cossenoidal (LOSHCHILOV; HUTTER, 2017). A parada antecipada
+            interrompe o treinamento após um número de épocas sem melhora da métrica de validação (<code>patience</code>), e o melhor estado é armazenado em <code>best.pt</code>.
           </p>
           <h4>Resolução e objetos pequenos</h4>
           <p>
-            Fotos de 2048 px reduzidas para 640 perdem detalhe (volte ao GSD da Aula 1). Duas saídas: subir o <code>imgsz</code> (a memória cresce com o quadrado do lado, então o batch diminui) ou
-            fatiar a imagem em pedaços com sobreposição, rodar o detector em cada um e juntar com NMS, como faz o <b>SAHI</b> (Akyon et al., 2022). Para treinar no mesmo espírito, fatie as fotos de
-            treino em ladrilhos antes de treinar.
+            A redução de imagens de alta resolução para a dimensão de entrada diminui o número de pixels por objeto (Aula 1, bloco 1.3). As alternativas são aumentar <code>imgsz</code>, com custo de
+            memória aproximadamente proporcional à área, ou realizar a inferência sobre fatias sobrepostas e combinar as previsões, como no SAHI (AKYON; ALTINUC; TEMIZEL, 2022).
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="letterbox" cap="Uma foto do WGISD esticada (deforma o cacho) e em letterbox (mantém a proporção), com as caixas reescaladas." />
-          <Fig n="augmentation_real" cap="As transformações do Ultralytics aplicadas a fotos reais do WGISD, com as caixas recalculadas. O mosaic junta quatro variedades." />
-          <Fig n="lr_schedule" cap="As duas agendas de taxa de aprendizado do Ultralytics, com aquecimento de 3 épocas." />
-          <Fig n="sahi_fatias" cap="Foto de 2048 px do WGISD: inteira reduzida para 640 (esquerda) ou fatiada em pedaços de 640 com sobreposição (direita)." />
+          <Fig n="letterbox" cap="Figura 8. Redimensionamento com deformação e com preservação da proporção, e as caixas correspondentes." />
+          <Fig n="augmentation_real" cap="Figura 9. Transformações de aumento de dados aplicadas a imagens do WGISD, com recálculo das caixas." />
+          <Fig n="lr_schedule" cap="Figura 10. Agendas linear e cossenoidal da taxa de aprendizado com aquecimento de três épocas." />
+          <Fig n="sahi_fatias" cap="Figura 11. Imagem do WGISD reduzida a 640 pixels e particionada em fatias de 640 pixels com 20% de sobreposição." />
         </>
       ),
       pratica: (
         <>
-          <p>Disparem o treino <b>antes do intervalo</b> (célula 3 do notebook). Ele roda enquanto vocês tomam café.</p>
+          <p>Iniciar o treinamento antes do intervalo (célula 3 do notebook).</p>
           <Code code={`from ultralytics import YOLO
-modelo = YOLO("yolo11n.pt")          # confira os pesos disponíveis na sua versão
+modelo = YOLO("yolo11n.pt")          # verificar os pesos disponíveis na versão instalada
 modelo.train(
     data="wgisd_yolo/data.yaml",
     epochs=40, imgsz=640, batch=16,
-    patience=15,                    # parada antecipada
-    close_mosaic=10,                # últimas 10 épocas sem mosaic
+    patience=15, close_mosaic=10,
     seed=42, deterministic=True,
     project="runs", name="uva_n",
 )`} />
-          <Code title="Python · ver o augmentation que a rede recebe" code={`from PIL import Image
-Image.open("runs/uva_n/train_batch0.jpg")   # um lote real do treino, com mosaic e caixas`} />
-          <Callout kind="prof"><p>Com a T4 do Colab, 40 épocas no WGISD levam cerca de 10 a 15 minutos com o modelo nano. Abra o <code>train_batch0.jpg</code> durante o intervalo: a turma vê o mosaic em ação.</p></Callout>
+          <Code title="Python · inspeção de um lote de treino" code={`from PIL import Image
+Image.open("runs/uva_n/train_batch0.jpg")`} />
+          <Callout kind="prof"><p>O tempo de treinamento depende da GPU disponível no Colab e da versão do software. Recomenda-se manter, no repositório da disciplina, pesos previamente treinados para o caso de interrupção da sessão.</p></Callout>
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'Por que o espelhamento vertical (flipud) vem desligado por padrão e faz sentido ligá-lo em imagens de drone?', r: <p>Em fotos tiradas do chão, o céu está em cima e cacho pendurado não aparece de cabeça para baixo: espelhar na vertical criaria cenas impossíveis. Em imagens aéreas (nadir) não existe "em cima", então flipud e rotações são válidos.</p> },
-        { nivel: 'médio', q: 'Uma foto 2048 × 1365 entra em letterbox para 640. Qual o fator de escala, o tamanho da área útil e quantas linhas de cinza entram em cima e embaixo?', r: <p>Escala = 640 / 2048 = 0,3125. Área útil: 640 × 427. Sobram 213 linhas: cerca de 106 em cima e 107 embaixo.</p> },
-        { nivel: 'médio', q: 'Com imgsz 640 e batch 16 a memória da GPU está em 6 GB. Estime o que acontece com imgsz 1280 e o mesmo batch.', r: <p>A memória das ativações cresce com a área: cerca de 4 vezes mais, uns 24 GB, o que estoura a T4 (16 GB). Use batch 4 ou 8, ou fatie as imagens.</p> },
-        { nivel: 'desafio', q: 'Por que a perda de caixa usa CIoU e não só o IoU?', r: <p>Quando as caixas não se tocam, IoU = 0 para qualquer distância e o gradiente é zero: a rede não sabe para onde mover. O CIoU soma a distância normalizada entre os centros e a diferença de proporção, dando direção mesmo sem sobreposição.</p> },
+        { nivel: 'básico', q: 'Discutir a adequação do espelhamento vertical em imagens laterais de dossel e em imagens aéreas ortogonais.', r: <p>Em imagens laterais, a orientação vertical é informativa (frutos pendentes, céu acima), e o espelhamento vertical gera cenas implausíveis. Em imagens ortogonais não há orientação preferencial, e espelhamentos e rotações são transformações plausíveis.</p> },
+        { nivel: 'médio', q: 'Uma imagem de 2048 × 1365 é redimensionada com preservação de proporção para 640. Calcular o fator de escala, a área útil e o preenchimento.', r: <p>Fator 0,3125; área útil 640 × 427; 213 linhas de preenchimento, cerca de 106 acima e 107 abaixo.</p> },
+        { nivel: 'médio', q: 'Com imgsz 640 e lote 16, o treinamento ocupa 6 GB de memória. Estimar o efeito de imgsz 1280 com o mesmo lote.', r: <p>A memória de ativações cresce aproximadamente com a área (fator 4), resultando em cerca de 24 GB, acima da capacidade de uma GPU de 16 GB. Seria necessário reduzir o lote ou fatiar as imagens.</p> },
+        { nivel: 'desafio', q: 'Explicar por que a perda de localização não utiliza apenas o IoU.', r: <p>Quando as caixas não se sobrepõem, o IoU é nulo e seu gradiente também, o que impede a otimização. O CIoU inclui a distância entre centros e a diferença de razão de aspecto, fornecendo gradiente nessas situações (ZHENG et al., 2020).</p> },
       ],
     },
     /* ============================================================ 2.4 */
     {
       id: 'b24',
       cod: '2.4',
-      titulo: 'Curvas, métricas e hiperparâmetros',
+      titulo: 'Curvas de aprendizado, métricas e seleção de hiperparâmetros',
       min: 45,
       tipo: 'conceito',
       slides: [
-        { titulo: 'Lendo as curvas', img: 'curvas_treino', pontos: ['As duas perdas altas: underfitting', 'Treino desce e validação sobe: overfitting', 'best.pt fica no pico da validação'] },
-        { titulo: 'Precisão, revocação, F1', formula: <>P = TP/(TP+FP) · R = TP/(TP+FN) · F1 = 2PR/(P+R)</>, pontos: ['Precisão: das caixas desenhadas, quantas eram cacho', 'Revocação: dos cachos que existiam, quantos foram achados', 'F1: equilíbrio entre os dois'] },
-        { titulo: 'Curva PR e AP', img: 'pr_curva_real', pontos: ['Varre o limiar de confiança', 'AP = área sob a curva PR (interpolada)', 'mAP50: média das classes com IoU 0,5'] },
-        { titulo: 'mAP50-95: dez limiares de IoU', img: 'map_limiares', pontos: ['IoU de 0,50 a 0,95, de 0,05 em 0,05', 'Uma caixa com IoU 0,74 acerta em 5 dos 10', 'Premia localização precisa'] },
-        { titulo: 'Matriz de confusão do detector', img: 'matriz_confusao', pontos: ['Diagonal: acertos por classe', 'Linha "fundo": falsos positivos', 'Coluna "fundo": objetos que o modelo não viu'] },
-        { titulo: 'A métrica do produtor: erro de contagem', img: 'erro_contagem', formula: <>MAE = média |previstos − reais| · viés = média (previstos − reais)</> },
-        { titulo: 'Grade ou aleatória?', img: 'grid_vs_random', pontos: ['Mesmo orçamento de treinos', 'Aleatória testa mais valores do que importa', 'Ajuste só com treino e validação; teste é para o fim'] },
+        { titulo: 'Curvas de aprendizado', img: 'curvas_treino', pontos: ['Perdas elevadas em treino e validação: subajuste', 'Divergência entre as perdas: sobreajuste', 'best.pt corresponde ao máximo da métrica de validação'] },
+        { titulo: 'Precisão, revocação e F1', formula: <>P = TP/(TP+FP) · R = TP/(TP+FN) · F1 = 2PR/(P+R)</>, pontos: ['Correspondência por IoU ≥ limiar, uma anotação por previsão', 'Revisão das definições em Padilla, Netto e da Silva (2020)'] },
+        { titulo: 'Curva PR e precisão média', img: 'pr_curva_real', pontos: ['Variação do limiar de confiança', 'AP: área sob a curva com precisão interpolada', 'Interpolação em 11 pontos (VOC 2007) ou 101 pontos (COCO)'] },
+        { titulo: 'mAP50 e mAP50-95', img: 'map_limiares', pontos: ['mAP50: limiar de IoU 0,5 (EVERINGHAM et al., 2010)', 'mAP50-95: média em dez limiares (LIN et al., 2014)', 'O segundo é mais sensível à qualidade da localização'] },
+        { titulo: 'Matriz de confusão em detecção', img: 'matriz_confusao', pontos: ['Diagonal: correspondências corretas por classe', 'Linha de fundo: falsos positivos', 'Coluna de fundo: falsos negativos'] },
+        { titulo: 'Erro de contagem', img: 'erro_contagem', formula: <>MAE = média |n̂ − n| · viés = média (n̂ − n)</>, pontos: ['Métrica alinhada a aplicações de estimativa de produção', 'FP e FN podem se compensar: contagem correta não implica detecção correta'] },
+        { titulo: 'Seleção de hiperparâmetros', img: 'grid_vs_random', pontos: ['Busca aleatória × grade (BERGSTRA; BENGIO, 2012)', 'Otimização bayesiana (SNOEK; LAROCHELLE; ADAMS, 2012)', 'Decisões tomadas apenas no conjunto de validação'] },
       ],
       teoria: (
         <>
-          <h4>Curvas</h4>
+          <h4>Curvas de aprendizado</h4>
           <p>
-            O <code>results.csv</code> guarda, por época, as perdas de treino e de validação e as métricas na validação. <b>Underfitting</b>: as duas perdas altas e o mAP ainda subindo (mais épocas,
-            modelo maior). <b>Overfitting</b>: perda de treino caindo e de validação subindo, mAP caindo (mais dados, mais augmentation, modelo menor, parar antes).
+            O arquivo <code>results.csv</code> registra, por época, as perdas de treino e de validação e as métricas de validação. Perdas elevadas em ambos os conjuntos sugerem subajuste; redução
+            da perda de treino acompanhada de aumento da perda de validação sugere sobreajuste. O diagnóstico orienta as intervenções: aumento de capacidade ou de épocas no primeiro caso; mais dados,
+            regularização, aumento de dados ou parada antecipada no segundo (GOODFELLOW; BENGIO; COURVILLE, 2016).
           </p>
-          <h4>De caixas a métricas</h4>
-          <p>Para cada imagem, as caixas previstas (da maior para a menor confiança) são casadas com as anotadas por IoU ≥ limiar, cada anotação no máximo uma vez. Daí saem:</p>
-          <ol>
-            <li><b>Precisão</b> P = TP / (TP + FP): das caixas que o modelo desenhou, quantas eram cachos.</li>
-            <li><b>Revocação</b> R = TP / (TP + FN): dos cachos que existiam, quantos o modelo achou.</li>
-            <li><b>F1</b> = 2PR / (P + R): média harmônica; o pico da curva F1 × confiança sugere o <code>conf</code> de uso.</li>
-            <li><b>AP</b>: varrendo o limiar de confiança, traça-se a curva precisão × revocação; o AP é a área sob ela, com a precisão interpolada pelo máximo à direita. O COCO usa 101 pontos de revocação.</li>
-            <li><b>mAP50</b>: média do AP das classes com IoU 0,5. <b>mAP50-95</b>: média do AP em dez limiares de IoU, de 0,50 a 0,95. É a métrica principal do COCO.</li>
-          </ol>
+          <h4>Métricas de detecção</h4>
           <p>
-            <b>Exemplo resolvido.</b> 100 cachos no teste; o modelo desenhou 95 caixas, 80 casaram. TP = 80, FP = 15, FN = 20. P = 80/95 = 0,84; R = 80/100 = 0,80; F1 = 2 × 0,84 × 0,80 / 1,64 = 0,82.
-            Contagem prevista: 95, erro de −5.
+            Para cada imagem, as previsões são ordenadas por confiança e associadas às anotações por IoU ≥ limiar, cada anotação no máximo uma vez. A partir das contagens de TP, FP e FN definem-se
+            precisão, revocação e F1. Variando o limiar de confiança, obtém-se a curva precisão-revocação; a precisão média (AP) é a área sob essa curva, calculada com precisão interpolada. O PASCAL
+            VOC 2007 utilizou interpolação em 11 pontos e edições posteriores, em todos os pontos (EVERINGHAM et al., 2010); o COCO adota 101 pontos de revocação e calcula a média do AP em dez
+            limiares de IoU, de 0,50 a 0,95 (LIN et al., 2014). Padilla, Netto e da Silva (2020) mostram que essas variantes podem produzir valores distintos para o mesmo detector, o que exige
+            explicitar o protocolo ao reportar resultados.
           </p>
           <p>
-            Métrica de detecção não é métrica de negócio. Para estimar produção, o que importa é o <b>erro de contagem</b>: MAE (erro absoluto médio por foto ou por fileira) e viés (se conta a mais ou
-            a menos). Um modelo com mAP mediano pode contar bem, porque FP e FN se compensam, e o contrário também acontece.
+            <b>Exemplo resolvido.</b> Com 100 objetos anotados e 95 previsões, das quais 80 correspondem a anotações: TP = 80, FP = 15, FN = 20; P = 0,842; R = 0,800; F1 = 0,821; contagem prevista
+            de 95, erro de −5.
           </p>
-          <h4>Hiperparâmetros</h4>
           <p>
-            Taxa de aprendizado, imgsz, tamanho do modelo, augmentation. Com orçamento fixo, a <b>busca aleatória</b> costuma vencer a <b>busca em grade</b> (Bergstra e Bengio, 2012), porque explora mais
-            valores do hiperparâmetro que realmente importa. O Ultralytics tem <code>model.tune()</code>, que faz uma busca evolutiva. Toda escolha é feita olhando a validação. O teste é aberto uma vez,
-            no fim; se o artigo reporta o melhor de 20 configurações no teste, o número está inflado.
+            Em aplicações de estimativa de produção, a variável de interesse costuma ser a contagem. O erro absoluto médio (MAE) e o viés da contagem por imagem ou por parcela complementam as
+            métricas de detecção, pois falsos positivos e falsos negativos podem se compensar.
+          </p>
+          <h4>Seleção de hiperparâmetros</h4>
+          <p>
+            Bergstra e Bengio (2012) mostram que, quando poucos hiperparâmetros determinam o desempenho, a busca aleatória explora mais valores desses hiperparâmetros do que a busca em grade com o
+            mesmo número de avaliações. A otimização bayesiana constitui alternativa que modela a relação entre hiperparâmetros e desempenho (SNOEK; LAROCHELLE; ADAMS, 2012). Qualquer que seja o
+            método, a seleção deve usar exclusivamente o conjunto de validação; a escolha da melhor entre várias configurações com base no teste produz estimativas otimistas (KAPOOR; NARAYANAN, 2023).
+            Recomenda-se, quando possível, repetir o experimento com diferentes sementes e reportar média e dispersão.
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="curvas_treino" cap="Formato típico do results.csv. As curvas são ilustrativas; no notebook vocês plotam as suas." />
-          <Fig n="pr_curva_real" cap="Curva PR calculada sobre 221 cachos reais do WGISD contra um detector simulado. Repare como o AP cai ao exigir IoU 0,75." />
-          <Fig n="map_limiares" cap="Uma caixa prevista com IoU 0,74 sobre um cacho real: acerto nos cinco primeiros limiares do mAP50-95, erro nos outros cinco." />
-          <Fig n="matriz_confusao" cap="Leitura da matriz de confusão de um detector com duas classes e fundo (valores ilustrativos)." />
-          <Fig n="erro_contagem" cap="Erro de contagem por foto em 64 fotos reais do WGISD, com um detector simulado. É o gráfico que o produtor entende." />
-          <Fig n="grid_vs_random" cap="Nove treinos em grade testam 3 taxas de aprendizado; nove aleatórios testam 9." />
+          <Fig n="curvas_treino" cap="Figura 12. Curvas de aprendizado ilustrativas, no formato do results.csv. Os valores não provêm de um treinamento real." />
+          <Fig n="pr_curva_real" cap="Figura 13. Curva precisão-revocação calculada sobre 221 caixas anotadas do WGISD e previsões simuladas. O procedimento de cálculo do AP é o mesmo do COCO; o detector é simulado." />
+          <Fig n="map_limiares" cap="Figura 14. Uma previsão com IoU 0,74 avaliada nos dez limiares do mAP50-95." />
+          <Fig n="matriz_confusao" cap="Figura 15. Matriz de confusão de um detector com duas classes e fundo (valores ilustrativos)." />
+          <Fig n="erro_contagem" cap="Figura 16. Erro de contagem por imagem em 64 imagens do WGISD, com previsões simuladas." />
+          <Fig n="grid_vs_random" cap="Figura 17. Busca em grade e busca aleatória com nove avaliações, segundo o argumento de Bergstra e Bengio (2012)." />
         </>
       ),
       pratica: (
         <>
           <LabMetricas />
-          <p>Com o treino pronto (célula 4 do notebook):</p>
+          <p>Com o treinamento concluído (célula 4 do notebook):</p>
           <ol>
-            <li>Plotem as perdas e o mAP50 por época. O treino parou por paciência ou por fim de épocas? Há sinal de overfitting?</li>
-            <li>Rodem <code>model.val(split="val")</code> e anotem P, R, mAP50 e mAP50-95.</li>
-            <li>Achem o <code>conf</code> do pico de F1 e meçam o erro de contagem por foto da validação.</li>
+            <li>Representar graficamente as perdas e o mAP50 por época e identificar se a interrupção ocorreu por paciência ou por limite de épocas.</li>
+            <li>Avaliar o modelo no conjunto de validação e registrar P, R, mAP50 e mAP50-95.</li>
+            <li>Determinar o limiar de confiança de máximo F1 e o erro de contagem por imagem na validação.</li>
           </ol>
           <Code code={`import pandas as pd
 df = pd.read_csv("runs/uva_n/results.csv"); df.columns = df.columns.str.strip()
@@ -330,191 +323,224 @@ print(f"P={m.box.mp:.3f} R={m.box.mr:.3f} mAP50={m.box.map50:.3f} mAP50-95={m.bo
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'TP = 60, FP = 20, FN = 40. Calcule P, R e F1.', r: <p>P = 60/80 = 0,75; R = 60/100 = 0,60; F1 = 2 × 0,75 × 0,60 / 1,35 = 0,67.</p> },
-        { nivel: 'básico', q: 'Modelo com P = 0,95 e R = 0,60. Na contagem de cachos, o erro típico é para mais ou para menos?', r: <p>Para menos: revocação baixa significa muitos cachos sem caixa, e precisão alta significa poucas caixas falsas para compensar.</p> },
-        { nivel: 'médio', q: 'Detecções ordenadas por confiança, com acerto (1) ou erro (0): 1, 1, 0, 1, 0, 1. Há 5 objetos. Calcule P e R a cada passo e o AP (sem interpolação, somando P × ΔR).', r: <><p>Passo a passo (P; R): (1; 0,2), (1; 0,4), (0,67; 0,4), (0,75; 0,6), (0,6; 0,6), (0,67; 0,8).</p><p>AP = 1 × 0,2 + 1 × 0,2 + 0,75 × 0,2 + 0,67 × 0,2 = 0,68. O objeto nunca achado limita a revocação a 0,8.</p></> },
-        { nivel: 'médio', q: 'O mAP50 está em 0,90 e o mAP50-95 em 0,45. O que isso diz sobre o modelo?', r: <p>Ele acha os cachos, mas as caixas não encaixam bem nas bordas. Para contagem isso basta; para medir tamanho de cacho, não. Caminhos: mais resolução, anotação mais consistente nas bordas, modelo maior.</p> },
-        { nivel: 'desafio', q: 'Você testou 20 configurações e escolheu a de maior mAP no teste. Por que o número reportado está otimista e como corrigir?', r: <p>Escolher pelo teste é ajustar ao teste: o máximo de 20 medidas ruidosas é viesado para cima. Corrija escolhendo pela validação (ou validação cruzada por grupo) e reportando o teste da configuração escolhida uma única vez; melhor ainda, repetir com sementes diferentes e reportar média e desvio.</p> },
+        { nivel: 'básico', q: 'Calcular P, R e F1 para TP = 60, FP = 20 e FN = 40.', r: <p>P = 0,75; R = 0,60; F1 = 0,667.</p> },
+        { nivel: 'básico', q: 'Um modelo apresenta P = 0,95 e R = 0,60. Qual o sentido esperado do erro de contagem?', r: <p>Subestimação: a baixa revocação indica muitos objetos não detectados, e a alta precisão indica poucos falsos positivos para compensá-los.</p> },
+        { nivel: 'médio', q: 'Previsões ordenadas por confiança, com correspondência (1) ou não (0): 1, 1, 0, 1, 0, 1, para 5 objetos. Calcular P e R em cada posição e o AP sem interpolação (soma de P·ΔR).', r: <><p>(P; R): (1; 0,2), (1; 0,4), (0,67; 0,4), (0,75; 0,6), (0,6; 0,6), (0,67; 0,8).</p><p>AP = 0,2 + 0,2 + 0,15 + 0,133 = 0,683. A revocação máxima é 0,8, pois um objeto não é detectado.</p></> },
+        { nivel: 'médio', q: 'Interpretar mAP50 = 0,90 com mAP50-95 = 0,45.', r: <p>O modelo localiza a maioria dos objetos, mas com ajuste impreciso das bordas. Para contagem, o resultado pode ser adequado; para estimar dimensões dos objetos, não.</p> },
+        { nivel: 'desafio', q: 'Explicar por que selecionar a melhor de 20 configurações pelo desempenho no teste produz estimativa otimista e propor procedimento adequado.', r: <p>O máximo de várias medidas ruidosas é viesado para cima, e o teste passa a participar da seleção. O procedimento adequado seleciona pela validação (ou por validação cruzada em blocos), avalia a configuração escolhida uma única vez no teste e reporta a variabilidade entre sementes.</p> },
       ],
     },
     /* ============================================================ 2.5 */
     {
       id: 'b25',
       cod: '2.5',
-      titulo: 'Laboratório 2: mudança de domínio, rastreamento e exportação',
+      titulo: 'Laboratório 2: mudança de distribuição, rastreamento e reprodutibilidade',
       min: 45,
       tipo: 'lab',
       slides: [
-        { titulo: 'O teste que importa: outra fazenda', img: 'dominio_variedades', pontos: ['Cor do cacho, folhagem, luz e câmera mudam', 'Treinamos em 3 variedades e testamos em Syrah', 'A queda de mAP mede o quanto o modelo generaliza'] },
-        { titulo: 'A mudança de domínio medida', img: 'dominio_cor', pontos: ['Matiz dos pixels dentro das caixas', 'Brancas e tintas ocupam regiões diferentes', 'Treinar só em brancas e testar em tintas: queda esperada'] },
-        { titulo: 'Condições que o treino não viu', img: 'iluminacao', pontos: ['Fim de tarde, contraluz', 'Outra câmera, outro balanço de branco', 'Desfoque, chuva, poeira', 'Teste o modelo em cada uma'] },
-        { titulo: 'Contar em vídeo sem contar duas vezes', img: 'rastreamento_ids', pontos: ['Detector vê o mesmo cacho em vários quadros', 'Rastreador (ByteTrack) mantém o id', 'Contagem = ids únicos, não soma de caixas'] },
-        { titulo: 'Como o ByteTrack associa', pontos: ['Prevê a nova posição de cada trilha (filtro de Kalman)', 'Casa as detecções de alta confiança por IoU', 'Tenta casar as de baixa confiança com as trilhas que sobraram', 'Trilha sem par por alguns quadros é encerrada'] },
-        { titulo: 'Exportar e reproduzir', pontos: ['model.export(format="onnx") para rodar fora do Python', 'TFLite ou NCNN para celular, TensorRT para Jetson', 'Guardar: best.pt, data.yaml, args.yaml, results.csv', 'Anotar versões, semente e divisão'] },
+        { titulo: 'Avaliação fora da distribuição de treino', img: 'dominio_variedades', pontos: ['Treino em três variedades; teste em uma variedade não vista', 'A diferença entre validação e teste estima o efeito da mudança de distribuição'] },
+        { titulo: 'Caracterização da mudança', img: 'dominio_cor', pontos: ['Distribuição de matiz e brilho no interior das caixas', 'Variedades brancas e tintas ocupam regiões distintas'] },
+        { titulo: 'Evidência na literatura', pontos: ['WILDS: desempenho fora da distribuição substancialmente inferior ao intra-distribuição (KOH et al., 2021)', 'Inclui o GlobalWheat, derivado do GWHD (DAVID et al., 2020)'] },
+        { titulo: 'Testes de robustez', img: 'iluminacao', pontos: ['Iluminação, balanço de branco, ruído e desfoque', 'Perturbações sintéticas não substituem dados reais de outro domínio'] },
+        { titulo: 'Contagem em vídeo', img: 'rastreamento_ids', pontos: ['Um mesmo objeto aparece em vários quadros', 'Rastreamento atribui identificadores persistentes', 'Contagem por identificadores únicos ou por cruzamento de linha'] },
+        { titulo: 'ByteTrack', pontos: ['Predição do estado das trilhas por filtro de Kalman', 'Associação por IoU, primeiro com detecções de alta confiança', 'Recuperação de trilhas com detecções de baixa confiança (ZHANG et al., 2022)'] },
+        { titulo: 'Exportação e documentação', pontos: ['Formatos: ONNX, TorchScript, TFLite, TensorRT', 'Verificação da equivalência das previsões após a exportação', 'Registro de pesos, parâmetros, versões, semente e partição'] },
       ],
       teoria: (
         <>
-          <h4>Mudança de domínio</h4>
+          <h4>Mudança de distribuição</h4>
           <p>
-            Um modelo treinado e validado numa fazenda aprende também o que é próprio daquela fazenda: a luz da manhã, a câmera, a cor do solo, a variedade. Num <b>domínio diferente</b> o desempenho
-            cai, e essa queda é a informação mais honesta do trabalho. Fontes comuns: iluminação (hora, nuvem), sensor (câmera, celular, drone), escala (altura de voo), fundo (solo, palhada) e o
-            próprio objeto (variedade, estádio fenológico). No WGISD, cada variedade é um domínio: Syrah tem cachos escuros e Chardonnay, cachos verdes.
+            Modelos ajustados a um conjunto de imagens incorporam características específicas das condições de coleta, como iluminação, sensor, fundo e estádio fenológico. Quando a distribuição dos
+            dados de uso difere da distribuição de treino, o desempenho tende a diminuir. Koh et al. (2021), no benchmark WILDS, observaram desempenho fora da distribuição substancialmente inferior ao
+            desempenho intra-distribuição em todos os conjuntos avaliados, entre eles o GlobalWheat, derivado do GWHD (DAVID et al., 2020). No WGISD, as variedades diferem em cor dos cachos e em
+            arquitetura do dossel, o que permite construir um teste fora da distribuição por meio da partição por variedade.
           </p>
           <p>
-            O que fazer: medir a queda (validação × teste em outro domínio), olhar os erros e classificá-los por causa, e só então agir: incluir imagens do novo domínio no treino, augmentation dirigido
-            à causa (variação de HSV para luz, blur para movimento), ou ajuste fino com poucas imagens anotadas do novo domínio.
+            A análise recomendada compreende: quantificar a diferença entre validação e teste; examinar e categorizar os erros (iluminação, oclusão, escala, cor, inconsistência de anotação); e, então,
+            avaliar intervenções, como inclusão de imagens do novo domínio, aumento de dados dirigido à causa identificada ou ajuste fino com poucas imagens anotadas. Perturbações sintéticas de
+            iluminação e nitidez permitem testar a sensibilidade do modelo, mas não substituem a avaliação com dados reais de outro domínio.
           </p>
           <h4>Rastreamento e contagem</h4>
           <p>
-            Em <b>vídeo</b>, o mesmo cacho aparece em dezenas de quadros. Somar as caixas superestima a contagem. Um rastreador associa as detecções entre quadros e dá um id a cada objeto; a contagem
-            passa a ser o número de ids únicos (ou de ids que cruzam uma linha virtual). O <b>ByteTrack</b> (Zhang et al., 2022) prevê a nova posição de cada trilha com um filtro de Kalman, casa primeiro
-            as detecções de alta confiança por IoU e depois tenta recuperar as de baixa confiança, o que reduz trilhas perdidas por oclusão. Santos et al. (2020) contaram cachos do WGISD em vídeo com
-            uma associação em 3D.
+            Em vídeo, a soma das detecções por quadro superestima o número de objetos. Rastreadores associam detecções entre quadros e mantêm identificadores persistentes. O ByteTrack prediz a
+            posição de cada trilha com filtro de Kalman, associa primeiro as detecções de alta confiança por IoU e utiliza as de baixa confiança para recuperar trilhas não associadas, reduzindo
+            perdas por oclusão (ZHANG et al., 2022). Santos et al. (2020) realizaram a contagem de cachos do WGISD em vídeo por associação tridimensional.
           </p>
           <h4>Exportação e reprodutibilidade</h4>
           <p>
-            Exportar o modelo (ONNX, TorchScript, TFLite, NCNN, TensorRT) permite rodar no celular, no computador de bordo do trator ou numa Jetson, sem Python. Confira que o modelo exportado dá o
-            mesmo resultado que o <code>.pt</code> numa imagem de teste. E reprodutibilidade é guardar tudo que levou ao número: pesos, configuração (<code>args.yaml</code>), versões, semente e a
-            divisão.
+            A exportação para formatos como ONNX, TorchScript, TFLite ou TensorRT viabiliza a execução em dispositivos sem o ambiente de treinamento. A equivalência das previsões entre o modelo
+            original e o exportado deve ser verificada, especialmente quando há quantização. A documentação do experimento deve incluir pesos, parâmetros, versões de software, semente e partição dos
+            dados (KAPOOR; NARAYANAN, 2023).
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="dominio_variedades" cap="Uma foto de cada variedade do WGISD com as caixas reais. O brilho e a cor do cacho mudam bastante entre domínios." />
-          <Fig n="dominio_cor" cap="Histogramas de matiz e brilho dos pixels dentro das caixas anotadas, por variedade: a mudança de domínio em números." />
-          <Fig n="iluminacao" cap="A mesma foto do WGISD em seis condições simuladas. Use-as como teste de estresse do modelo." />
-          <Fig n="rastreamento_ids" cap="Simulação de uma câmera andando pela fileira sobre uma foto real: cada cacho mantém o id entre quadros." />
+          <Fig n="dominio_variedades" cap="Figura 18. Uma imagem de cada variedade do WGISD com as caixas anotadas." />
+          <Fig n="dominio_cor" cap="Figura 19. Histogramas de matiz e brilho dos pixels no interior das caixas anotadas, por variedade." />
+          <Fig n="iluminacao" cap="Figura 20. Perturbações sintéticas de iluminação, cor, ruído e nitidez aplicadas a uma imagem do WGISD." />
+          <Fig n="rastreamento_ids" cap="Figura 21. Simulação de deslocamento da câmera ao longo de uma imagem do WGISD, com identificadores persistentes." />
           <Caso
-            tipo="artigo brasileiro"
+            tipo="artigo em periódico"
             titulo="Detection and classification of soybean pests using deep learning with UAV images"
             autores="Tetila, Machado, Astolfi, Belete, Amorim, Roel e Pistori"
-            onde="Computers and Electronics in Agriculture 179 (2020), 105836"
+            onde="Computers and Electronics in Agriculture, v. 179, 105836, 2020"
             link="https://doi.org/10.1016/j.compag.2020.105836"
-            resumo={<p>Pragas da soja fotografadas por drone em condições reais de campo, classificadas por cinco arquiteturas profundas. As redes com ajuste fino a partir de pesos pré-treinados foram as melhores: transfer learning num problema de campo brasileiro.</p>}
-            pipeline={['Imagens de VANT em lavouras de soja', 'Cinco arquiteturas profundas comparadas', 'Treino do zero × ajuste fino de pesos pré-treinados']}
-            numeros={[{ v: '5', l: 'arquiteturas comparadas' }, { v: 'até 93,82%', l: 'acurácia com ajuste fino' }]}
-            discutir={['Em que condições (dia, hora, propriedade) foram as fotos de teste?', 'Como o resultado mudaria numa safra seguinte?']}
+            resumo={<p>Os autores avaliam cinco arquiteturas profundas na classificação de imagens de pragas da soja obtidas por VANT em condições de campo e comparam o treinamento a partir de pesos pré-treinados com outras abordagens. As arquiteturas com ajuste fino obtiveram as maiores taxas de classificação.</p>}
+            pipeline={['Imagens de VANT em lavouras de soja', 'Cinco arquiteturas profundas', 'Ajuste fino a partir de pesos pré-treinados', 'Comparação com outras abordagens']}
+            numeros={[{ v: '5', l: 'arquiteturas avaliadas' }, { v: 'até 93,82%', l: 'acurácia reportada' }]}
+            discutir={['Em que medida as imagens de teste diferem das de treino quanto a data, local e condições de captura?', 'Que resultado seria esperado em uma safra subsequente?']}
           />
         </>
       ),
       pratica: (
         <>
           <ol>
-            <li>Avaliem o <code>best.pt</code> no teste (Syrah, nunca visto). Comparem com a validação: quantos pontos de mAP50 caíram?</li>
-            <li>Escolham 5 erros (FP ou FN) e classifiquem a causa: luz, oclusão, escala, cor, anotação.</li>
-            <li>Rodem o modelo nas variações de iluminação (célula do notebook) e vejam qual condição mais derruba a revocação.</li>
-            <li>Rodem o rastreamento no vídeo de exemplo e comparem soma de caixas com ids únicos.</li>
-            <li>Exportem para ONNX, confiram uma predição e guardem a pasta <code>runs/uva_n</code> no Drive.</li>
+            <li>Avaliar <code>best.pt</code> no teste (Syrah) e comparar com a validação.</li>
+            <li>Selecionar cinco erros (FP ou FN) e classificá-los por causa provável.</li>
+            <li>Executar o teste de robustez (seção 5b do notebook) e identificar a perturbação de maior efeito sobre a razão entre caixas previstas e anotadas.</li>
+            <li>Executar o rastreamento no vídeo de exemplo e comparar a soma de detecções com o número de identificadores.</li>
+            <li>Exportar o modelo para ONNX, verificar a equivalência das previsões e arquivar a pasta do experimento.</li>
           </ol>
           <Code code={`m = YOLO("runs/uva_n/weights/best.pt")
 val = m.val(data="wgisd_yolo/data.yaml", split="val", verbose=False)
 teste = m.val(data="wgisd_yolo/data.yaml", split="test", verbose=False)
-print("queda de mAP50:", round(val.box.map50 - teste.box.map50, 3))
+print("diferença de mAP50 (validação − teste):", round(val.box.map50 - teste.box.map50, 3))
 
 ids = set()
 for r in m.track("fileira.mp4", tracker="bytetrack.yaml", stream=True, conf=0.3, persist=True):
     if r.boxes.id is not None: ids.update(r.boxes.id.int().tolist())
-print("cachos contados:", len(ids))
+print("identificadores únicos:", len(ids))
 
 caminho = m.export(format="onnx", imgsz=640)
-onnx = YOLO(caminho)
-print(len(onnx.predict("CDY_2017.jpg")[0].boxes), "caixas no ONNX")`} />
+print(len(YOLO(caminho).predict("CDY_2017.jpg")[0].boxes), "caixas no modelo exportado")`} />
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'No vídeo, o detector somou 900 caixas e o rastreador 75 ids. Quantos cachos? Por que os números diferem tanto?', r: <p>75: cada cacho aparece em cerca de 12 quadros em média. A soma de caixas conta o mesmo cacho a cada quadro.</p> },
-        { nivel: 'médio', q: 'mAP50 de 0,88 na validação (Sauvignon Blanc) e 0,61 no teste (Syrah). Liste três hipóteses e um experimento para testar cada uma.', r: <p>(1) Cor: o treino tinha poucas uvas tintas; inclua Cabernet no treino e reavalie. (2) Luz ou câmera diferentes na coleta de Syrah; compare histogramas de brilho e teste com augmentation de HSV mais forte. (3) Anotação diferente (outro anotador ou regra); audite 20 fotos de Syrah lado a lado.</p> },
-        { nivel: 'médio', q: 'O rastreador troca o id de um cacho quando uma folha passa na frente por 5 quadros. Que parâmetro do rastreador ajuda?', r: <p>O tempo que uma trilha sem par sobrevive antes de ser encerrada (track_buffer no bytetrack.yaml). Aumentá-lo permite recuperar o mesmo id depois da oclusão, com o risco de juntar objetos diferentes.</p> },
-        { nivel: 'desafio', q: 'O modelo vai rodar num celular no campo. Que formato de exportação e que tamanho de modelo você escolheria, e como validaria a escolha?', r: <p>TFLite ou NCNN com o modelo nano, possivelmente em FP16 ou INT8. Validaria comparando mAP e erro de contagem do exportado com o .pt no mesmo conjunto de validação e medindo o tempo por imagem no próprio aparelho.</p> },
+        { nivel: 'básico', q: 'Em um vídeo, a soma de detecções foi 900 e o rastreador produziu 75 identificadores. Interpretar.', r: <p>Cada objeto foi detectado, em média, em cerca de 12 quadros. A estimativa de contagem é 75, sujeita a erros de fragmentação ou fusão de trilhas.</p> },
+        { nivel: 'médio', q: 'mAP50 = 0,88 na validação (Sauvignon Blanc) e 0,61 no teste (Syrah). Formular três hipóteses e um experimento para cada uma.', r: <p>(1) Diferença de cor entre variedades brancas e tintas: incluir variedade tinta no treino e reavaliar. (2) Diferença de iluminação ou sensor: comparar distribuições de brilho e avaliar aumento de dados fotométrico. (3) Diferença de critério de anotação: auditar uma amostra das anotações de Syrah.</p> },
+        { nivel: 'médio', q: 'O rastreador reinicia o identificador de um cacho após oclusão de cinco quadros. Que parâmetro investigar?', r: <p>O número de quadros durante os quais uma trilha não associada é mantida (track_buffer). Valores maiores permitem recuperar a trilha após oclusões, com maior risco de associações incorretas.</p> },
+        { nivel: 'desafio', q: 'Definir um procedimento para escolher formato de exportação e escala de modelo para execução em dispositivo móvel.', r: <p>Selecionar candidatos (por exemplo, TFLite ou NCNN, escalas n e s, precisão FP16 ou INT8); medir, no conjunto de validação, mAP e erro de contagem de cada variante exportada; medir a latência no próprio dispositivo; escolher a variante que atende à restrição de latência com menor perda de desempenho.</p> },
       ],
     },
     /* ============================================================ 2.6 */
     {
       id: 'b26',
       cod: '2.6',
-      titulo: 'Pesquisa aplicada e orientação do trabalho',
+      titulo: 'Pesquisa aplicada e orientação da atividade avaliativa',
       min: 20,
       tipo: 'leitura',
       slides: [
-        { titulo: 'O que a pesquisa faz com isso', pontos: ['Santos et al. (2020): WGISD, Embrapa, detecção + rastreamento', 'Barbedo (2019): doenças por lesão individual, Embrapa', 'Tetila et al. (2020): pragas da soja por drone', 'Dang et al. (2023): YOLOWeeds, 25 YOLOs em daninhas do algodão', 'David et al. (2020): GWHD, espigas de trigo de vários países'] },
-        { titulo: 'Como transformar o trabalho em artigo', pontos: ['Pergunta do produtor, não da rede', 'Banco descrito: origem, licença, anotação, divisão', 'Linha de base simples antes do modelo complexo', 'Teste em outro domínio', 'Análise de erros com figuras'] },
-        { titulo: 'Trabalho em dupla', pontos: ['Dados e anotação: 25%', 'Treino e experimentação: 25%', 'Avaliação crítica e domínio externo: 30%', 'Demonstração e defesa: 20%'] },
+        { titulo: 'Estudos de referência', pontos: ['Santos et al. (2020): WGISD, detecção, segmentação e rastreamento', 'Barbedo (2019): identificação de doenças por lesões individuais', 'Tetila et al. (2020): pragas da soja em imagens de VANT', 'Dang et al. (2023): comparação de 25 detectores YOLO em plantas daninhas', 'David et al. (2020): GWHD, diversidade de domínios'] },
+        { titulo: 'Estrutura do relatório', pontos: ['Problema e pergunta de pesquisa', 'Descrição do conjunto: origem, licença, protocolo de anotação, partição', 'Linha de base', 'Resultados em validação e em teste fora da distribuição', 'Análise de erros e limitações', 'Disponibilidade de código'] },
+        { titulo: 'Critérios de avaliação', pontos: ['Dados e anotação: 25%', 'Treinamento e experimentação: 25%', 'Avaliação crítica e domínio externo: 30%', 'Demonstração e defesa: 20%'] },
       ],
       teoria: (
-        <>
-          <p>
-            Os trabalhos abaixo fazem as mesmas escolhas que vocês fizeram hoje, em escala maior. Leiam procurando: <b>como dividiram</b>, <b>que métrica reportaram</b> e <b>se testaram fora do
-            domínio</b>. Use a ficha de leitura crítica de cada artigo na seção de artigos.
-          </p>
-          <p>
-            Para o trabalho, a estrutura de um bom relatório técnico em formato de artigo: introdução com o problema do campo; materiais com o banco (origem, licença, como foi anotado, guia, como foi
-            dividido); métodos (modelo, hiperparâmetros, como foram escolhidos); resultados na validação e no teste externo; análise de erros com figuras; limitações; e um repositório que roda do zero.
-          </p>
-        </>
+        <p>
+          Os estudos apresentados a seguir aplicam, em escala de pesquisa, os procedimentos discutidos nas duas aulas. Recomenda-se analisá-los segundo o roteiro de leitura crítica da Aula 1:
+          procedimento de partição, protocolo de avaliação, representatividade do teste, linha de base e disponibilidade de dados e código. O relatório da atividade avaliativa deve seguir estrutura
+          de artigo científico, com descrição completa do conjunto e da partição, linha de base, resultados intra e fora da distribuição, análise de erros e limitações.
+        </p>
       ),
       exemplo: (
         <>
           <Caso
-            tipo="artigo da Embrapa"
+            tipo="artigo em periódico, Embrapa"
             titulo="Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association"
             autores="Santos, de Souza, dos Santos e Avila"
-            onde="Computers and Electronics in Agriculture 170 (2020), 105247"
+            onde="Computers and Electronics in Agriculture, v. 170, 105247, 2020"
             link="https://doi.org/10.1016/j.compag.2020.105247"
-            resumo={<p>Os autores criaram o WGISD nos vinhedos da Vinícola Guaspari, em Espírito Santo do Pinhal (SP), compararam detectores de um e dois estágios e usaram a trajetória da câmera para associar cachos entre quadros e contá-los sem repetição. É o banco que vocês usaram nas duas aulas.</p>}
-            pipeline={['300 fotos, 5 variedades, caixas e máscaras', 'Mask R-CNN, YOLOv2 e YOLOv3', 'Divisão em treino e teste declarada no repositório', 'Rastreamento por associação 3D em vídeo']}
-            numeros={[{ v: '300', l: 'fotos' }, { v: '4.431', l: 'cachos com caixa' }, { v: '2.020', l: 'cachos com máscara' }, { v: '5', l: 'variedades' }]}
-            discutir={['A divisão do banco original é por foto. Que vazamento isso pode causar entre fotos do mesmo vinhedo?', 'Por que o rastreamento muda o número que interessa ao produtor?']}
+            resumo={<p>Os autores apresentam o WGISD, obtido na Vinícola Guaspari, em Espírito Santo do Pinhal (SP), comparam detectores de um e dois estágios e propõem a associação tridimensional de detecções entre quadros para a contagem de cachos em vídeo.</p>}
+            pipeline={['300 imagens de cinco variedades, com caixas e máscaras', 'Mask R-CNN, YOLOv2 e YOLOv3', 'Partição de treino e teste disponibilizada no repositório', 'Associação tridimensional para contagem em vídeo']}
+            numeros={[{ v: '300', l: 'imagens' }, { v: '4.431', l: 'cachos com caixa' }, { v: '2.020', l: 'cachos com máscara' }, { v: '5', l: 'variedades' }]}
+            discutir={['A partição original considera a dependência entre imagens de um mesmo vinhedo?', 'Como a associação entre quadros altera a estimativa de contagem?']}
           />
           <Caso
-            tipo="artigo da Embrapa"
+            tipo="artigo em periódico, Embrapa"
             titulo="Plant disease identification from individual lesions and spots using deep learning"
             autores="Barbedo"
-            onde="Biosystems Engineering 180 (2019), 96-107"
+            onde="Biosystems Engineering, v. 180, p. 96-107, 2019"
             link="https://doi.org/10.1016/j.biosystemseng.2019.02.002"
-            resumo={<p>Em vez de classificar a folha inteira, o trabalho classifica cada lesão e mancha separadamente. Isso multiplica o número de exemplos e reduz o efeito do fundo, um jeito de contornar a falta de bancos grandes e o viés que Noyan (2022) encontrou no PlantVillage.</p>}
-            pipeline={['Fotos de folhas com doenças de várias culturas', 'Recorte de lesões e manchas individuais', 'Classificação com CNN e transfer learning', 'Comparação com a folha inteira']}
-            numeros={[{ v: 'lesão', l: 'unidade de classificação' }, { v: 'Embrapa', l: 'Informática Agropecuária' }]}
-            discutir={['Recortar lesões é classificação ou detecção? O que seria preciso para usar isso no campo?', 'Que vazamento aparece se lesões da mesma folha caem em treino e teste?']}
+            resumo={<p>O estudo utiliza lesões e manchas individuais, em vez da folha inteira, como unidade de classificação, o que aumenta o número de amostras e reduz a influência do fundo. Discute a limitação dos conjuntos disponíveis em representar a variedade de condições práticas.</p>}
+            pipeline={['Imagens de folhas com sintomas de diversas doenças', 'Recorte de lesões e manchas individuais', 'Classificação com transferência de aprendizado', 'Comparação com a classificação da folha inteira']}
+            numeros={[{ v: 'lesão', l: 'unidade de análise' }, { v: 'Embrapa', l: 'Informática Agropecuária' }]}
+            discutir={['Que procedimento evitaria que lesões de uma mesma folha fossem alocadas em conjuntos distintos?', 'Quais etapas adicionais seriam necessárias para aplicação em campo?']}
           />
         </>
       ),
-      pratica: (
-        <Callout kind="prof">
-          <p>Fechar com os critérios do trabalho (seção abaixo) e abrir 5 minutos para dúvidas. Cada dupla sai com o problema, o banco e o grupo de divisão escolhidos.</p>
-        </Callout>
-      ),
+      pratica: <Callout kind="prof"><p>Apresentação dos critérios da atividade avaliativa e definição, por dupla, do problema, do conjunto de dados e do critério de partição.</p></Callout>,
       exercicios: [
-        { nivel: 'médio', q: 'Escreva em duas frases a seção "divisão dos dados" do relatório da dupla, de modo que a banca não precise perguntar nada.', r: <p>Exemplo: "As 300 imagens foram divididas por variedade: Chardonnay, Cabernet Franc e Cabernet Sauvignon no treino (n imagens), Sauvignon Blanc na validação (m) e Syrah no teste (k), de modo que nenhuma sessão de coleta aparece em dois conjuntos. A validação foi usada para parada antecipada e escolha do limiar; o teste foi avaliado uma única vez."</p> },
+        { nivel: 'médio', q: 'Redigir a subseção de partição dos dados do relatório.', r: <p>Exemplo: "As 300 imagens foram particionadas por variedade: Chardonnay, Cabernet Franc e Cabernet Sauvignon no treino (n imagens), Sauvignon Blanc na validação (m) e Syrah no teste (k), de modo que nenhuma sessão de coleta ocorra em mais de um conjunto. A validação foi utilizada para parada antecipada e escolha do limiar de confiança; o teste foi avaliado uma única vez."</p> },
       ],
     },
   ],
   artigos: [
-    { tag: 'banco da aula', br: true, ref: 'Santos, T. T. et al. (2020). Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, 170, 105247.', link: 'https://doi.org/10.1016/j.compag.2020.105247', porque: 'O WGISD e o rastreamento de cachos em vídeo.', perguntas: ['Qual a diferença de desempenho entre Mask R-CNN e YOLO no artigo?', 'Como a associação 3D evita contar o mesmo cacho duas vezes?'] },
-    { tag: 'CNN no agro', br: true, ref: 'dos Santos Ferreira, A.; Freitas, D. M.; da Silva, G. G.; Pistori, H.; Folhes, M. T. (2017). Weed detection in soybean crops using ConvNets. Computers and Electronics in Agriculture, 143, 314-324.', link: 'https://doi.org/10.1016/j.compag.2017.10.027', porque: 'ConvNet contra SVM, AdaBoost e Random Forest com descritores, em daninhas da soja fotografadas por drone.', perguntas: ['Os segmentos de uma mesma foto foram separados entre treino e teste?', 'Que descritores manuais foram comparados?'] },
-    { tag: 'transfer learning', br: true, ref: 'Tetila, E. C. et al. (2020). Detection and classification of soybean pests using deep learning with UAV images. Computers and Electronics in Agriculture, 179, 105836.', link: 'https://doi.org/10.1016/j.compag.2020.105836', porque: 'Cinco arquiteturas e o ganho do ajuste fino em pragas da soja fotografadas por drone.', perguntas: ['Treino do zero contra ajuste fino: qual a diferença?', 'O teste veio de outra lavoura ou data?'] },
-    { tag: 'dados e viés', br: true, ref: 'Barbedo, J. G. A. (2019). Plant disease identification from individual lesions and spots using deep learning. Biosystems Engineering, 180, 96-107.', link: 'https://doi.org/10.1016/j.biosystemseng.2019.02.002', porque: 'Classificar lesões em vez de folhas inteiras para lidar com bancos pequenos (Embrapa).' },
-    { tag: 'benchmark', ref: 'Dang, F.; Chen, D.; Lu, Y.; Li, Z. (2023). YOLOWeeds: A novel benchmark of YOLO object detectors for multi-class weed detection in cotton production systems. Computers and Electronics in Agriculture, 205, 107655.', link: 'https://doi.org/10.1016/j.compag.2023.107655', porque: '25 YOLOs comparados em 12 daninhas, com Monte-Carlo e análise de augmentation. Tem notebook extra no repositório.', perguntas: ['Quanto o modelo maior ganhou de mAP e quanto custou de tempo?', 'Por que repetir com sementes diferentes?'] },
-    { tag: 'domínio', ref: 'David, E. et al. (2020). Global Wheat Head Detection (GWHD) dataset. Plant Phenomics.', link: 'https://arxiv.org/abs/2005.02162', porque: 'Espigas de trigo de vários países e câmeras: o exemplo clássico de mudança de domínio.', perguntas: ['Como o banco foi dividido entre regiões?', 'O que muda entre os domínios?'] },
-    { tag: 'hiperparâmetros', ref: 'Bergstra, J.; Bengio, Y. (2012). Random search for hyper-parameter optimization. JMLR 13.', link: 'https://jmlr.org/papers/v13/bergstra12a.html', porque: 'Por que a busca aleatória vence a grade com o mesmo orçamento.' },
-    { tag: 'rastreamento', ref: 'Zhang, Y. et al. (2022). ByteTrack: Multi-Object Tracking by Associating Every Detection Box. ECCV.', link: 'https://arxiv.org/abs/2110.06864', porque: 'O rastreador padrão do Ultralytics.' },
-    { tag: 'objetos pequenos', ref: 'Akyon, F. C.; Altinuc, S. O.; Temizel, A. (2022). Slicing Aided Hyper Inference and Fine-tuning for Small Object Detection. ICIP.', link: 'https://arxiv.org/abs/2202.06934', porque: 'O SAHI: fatiar a imagem para não perder objeto pequeno.' },
+    { tag: 'conjunto de dados', br: true, ref: 'Santos et al. (2020). Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, 170, 105247.', link: 'https://doi.org/10.1016/j.compag.2020.105247', porque: 'Origem do WGISD e procedimento de contagem em vídeo.', perguntas: ['Como o desempenho dos detectores de um e dois estágios foi comparado?', 'Como a associação tridimensional evita contagens repetidas?'] },
+    { tag: 'redes convolucionais na agricultura', br: true, ref: 'Ferreira et al. (2017). Weed detection in soybean crops using ConvNets. Computers and Electronics in Agriculture, 143, 314-324.', link: 'https://doi.org/10.1016/j.compag.2017.10.027', porque: 'Comparação entre rede convolucional e classificadores com descritores definidos manualmente.', perguntas: ['Qual a unidade amostral da partição?', 'Quais descritores foram usados na comparação?'] },
+    { tag: 'transferência de aprendizado', br: true, ref: 'Tetila et al. (2020). Detection and classification of soybean pests using deep learning with UAV images. Computers and Electronics in Agriculture, 179, 105836.', link: 'https://doi.org/10.1016/j.compag.2020.105836', porque: 'Avaliação de arquiteturas profundas e do ajuste fino em imagens de campo.', perguntas: ['Como as condições de coleta do teste se relacionam com as do treino?'] },
+    { tag: 'dados e unidade de análise', br: true, ref: 'Barbedo (2019). Plant disease identification from individual lesions and spots using deep learning. Biosystems Engineering, 180, 96-107.', link: 'https://doi.org/10.1016/j.biosystemseng.2019.02.002', porque: 'Estratégia para conjuntos pequenos e redução da influência do fundo.' },
+    { tag: 'comparação de detectores', ref: 'Dang et al. (2023). YOLOWeeds: A novel benchmark of YOLO object detectors for multi-class weed detection in cotton production systems. Computers and Electronics in Agriculture, 205, 107655.', link: 'https://doi.org/10.1016/j.compag.2023.107655', porque: 'Comparação de 25 detectores com repetições de Monte Carlo; notebook complementar no repositório.', perguntas: ['Qual a relação entre ganho de mAP e custo computacional?', 'Qual a justificativa para as repetições com sementes diferentes?'] },
+    { tag: 'mudança de distribuição', ref: 'Koh et al. (2021). WILDS: A benchmark of in-the-wild distribution shifts. ICML, PMLR 139, 5637-5664.', link: 'https://proceedings.mlr.press/v139/koh21a.html', porque: 'Evidência sistemática da queda de desempenho fora da distribuição, incluindo um conjunto agrícola.' },
+    { tag: 'diversidade de domínios', ref: 'David et al. (2020). Global Wheat Head Detection (GWHD) dataset. Plant Phenomics.', link: 'https://arxiv.org/abs/2005.02162', porque: 'Conjunto de espigas de trigo de várias regiões e sensores.', perguntas: ['Como as regiões foram distribuídas entre treino e teste?'] },
+    { tag: 'métricas', br: true, ref: 'Padilla, Netto e da Silva (2020). A survey on performance metrics for object-detection algorithms. IWSSIP.', link: 'https://doi.org/10.1109/IWSSIP48289.2020.9145130', porque: 'Definições e variantes de cálculo do AP.' },
+    { tag: 'hiperparâmetros', ref: 'Bergstra e Bengio (2012). Random search for hyper-parameter optimization. JMLR, 13, 281-305.', link: 'https://jmlr.org/papers/v13/bergstra12a.html', porque: 'Fundamentação da busca aleatória.' },
+    { tag: 'rastreamento', ref: 'Zhang et al. (2022). ByteTrack: Multi-Object Tracking by Associating Every Detection Box. ECCV.', link: 'https://arxiv.org/abs/2110.06864', porque: 'Método de rastreamento utilizado na prática.' },
+    { tag: 'objetos pequenos', ref: 'Akyon, Altinuc e Temizel (2022). Slicing Aided Hyper Inference and Fine-tuning for Small Object Detection. ICIP.', link: 'https://arxiv.org/abs/2202.06934', porque: 'Inferência por fatias para objetos pequenos.' },
   ],
   quiz: [
-    { p: 'Por que um perceptron sozinho não aprende o XOR?', o: ['faltam épocas', 'η muito alto', 'as classes não são separáveis por uma reta', 'os pesos começam em zero'], a: 2, e: 'XOR precisa de duas retas: camada escondida e ativação não linear.' },
-    { p: 'Entrada 320 × 320, conv 3 × 3, padding 1, stride 2. Tamanho da saída?', o: ['318', '320', '160', '159'], a: 2, e: '⌊(320 − 3 + 2) / 2⌋ + 1 = 159 + 1 = 160.' },
-    { p: 'Perda de treino caindo e de validação subindo desde a época 40. Diagnóstico?', o: ['underfitting', 'overfitting', 'vazamento', 'GSD alto'], a: 1, e: 'A rede passou a decorar o treino.' },
-    { p: 'Qual transformação muda as coordenadas das caixas?', o: ['variação de HSV', 'blur', 'espelhamento horizontal', 'ruído gaussiano'], a: 2, e: 'Geométricas mudam as caixas; fotométricas não.' },
-    { p: 'TP = 80, FP = 20, FN = 20. F1?', o: ['0,64', '0,80', '0,90', '0,75'], a: 1, e: 'P = R = 0,8, então F1 = 0,8.' },
-    { p: 'Modelo com P = 0,95 e R = 0,60. Na contagem de cachos, o erro típico é:', o: ['contar a mais', 'contar a menos', 'contar certo', 'não dá para saber'], a: 1, e: 'Revocação baixa: muitos cachos ficam sem caixa.' },
-    { p: 'Qual conjunto se usa para escolher a taxa de aprendizado?', o: ['treino', 'validação', 'teste', 'qualquer um'], a: 1, e: 'O teste só é aberto no fim.' },
-    { p: 'Num vídeo, o detector achou 900 caixas e o rastreador 75 ids. Quantos cachos?', o: ['900', '75', '825', '12'], a: 1, e: 'Cada id é um cacho visto em vários quadros.' },
+    { p: 'Por que o perceptron não resolve o XOR?', o: ['número insuficiente de épocas', 'taxa de aprendizado elevada', 'as classes não são linearmente separáveis', 'pesos iniciais nulos'], a: 2, e: 'A fronteira do perceptron é linear (MINSKY; PAPERT, 1969).' },
+    { p: 'Entrada 320 × 320, núcleo 3 × 3, preenchimento 1, passo 2. Dimensão da saída:', o: ['318', '320', '160', '159'], a: 2, e: '⌊(320 − 3 + 2)/2⌋ + 1 = 160.' },
+    { p: 'Perda de treino decrescente e perda de validação crescente a partir da época 40 indicam:', o: ['subajuste', 'sobreajuste', 'vazamento', 'GSD elevado'], a: 1, e: 'O modelo passa a ajustar particularidades do treino.' },
+    { p: 'Qual transformação exige recalcular as caixas?', o: ['variação em HSV', 'desfoque', 'espelhamento horizontal', 'ruído gaussiano'], a: 2, e: 'Transformações geométricas alteram as coordenadas.' },
+    { p: 'TP = 80, FP = 20, FN = 20. F1 =', o: ['0,64', '0,80', '0,90', '0,75'], a: 1, e: 'P = R = 0,8.' },
+    { p: 'A diferença entre mAP50 e mAP50-95 reflete principalmente:', o: ['o número de classes', 'a qualidade da localização', 'o tamanho do lote', 'a taxa de aprendizado'], a: 1, e: 'O mAP50-95 exige maior sobreposição.' },
+    { p: 'O conjunto adequado para selecionar a taxa de aprendizado é o de:', o: ['treino', 'validação', 'teste', 'qualquer um'], a: 1, e: 'O teste é reservado à estimativa final.' },
+    { p: 'Em vídeo, a estimativa de contagem por rastreamento corresponde a:', o: ['soma das detecções', 'número de identificadores únicos', 'média de detecções por quadro', 'máximo de detecções em um quadro'], a: 1, e: 'Cada identificador representa um objeto observado em vários quadros.' },
   ],
   entregas: [
-    <><b>Notebook de treino</b> que roda do zero, com versões, semente, divisão e parâmetros registrados.</>,
-    <><b>Resultados</b>: curvas, P, R, mAP50, mAP50-95, matriz de confusão e erro de contagem (MAE e viés).</>,
-    <><b>Linha de base</b>: um método clássico (limiar de cor + componentes) ou o modelo pré-treinado sem ajuste, para comparar.</>,
-    <><b>Domínio externo</b>: avaliação em outro grupo (variedade, propriedade, data) e análise de pelo menos 5 erros, com figura e causa provável.</>,
-    <><b>Relatório em formato de artigo</b> e demonstração de inferência em imagem ou vídeo na defesa.</>,
+    <><b>Notebook reprodutível</b>, com versões, semente, partição e parâmetros registrados.</>,
+    <><b>Resultados</b>: curvas de aprendizado, P, R, mAP50, mAP50-95, matriz de confusão e erro de contagem (MAE e viés), com o protocolo de cálculo explicitado.</>,
+    <><b>Linha de base</b>: método clássico ou modelo pré-treinado sem ajuste, avaliado no mesmo conjunto.</>,
+    <><b>Avaliação fora da distribuição</b> em outro grupo (variedade, propriedade ou data) e análise de pelo menos cinco erros, com figura e causa provável.</>,
+    <><b>Relatório em formato de artigo científico</b> e demonstração de inferência na defesa.</>,
+  ],
+  limitacoes: [
+    <>As curvas de aprendizado, a matriz de confusão e as previsões usadas nas figuras de curva PR e de erro de contagem são ilustrativas ou simuladas. Os resultados reais são os obtidos no notebook.</>,
+    <>A partição do WGISD por variedade foi definida para fins didáticos e difere da partição original dos autores; os resultados não são comparáveis aos de Santos et al. (2020).</>,
+    <>Apenas uma arquitetura (família YOLO, implementação Ultralytics) é treinada. Conclusões sobre a superioridade de uma família de detectores exigiriam comparação controlada, como em Huang et al. (2017) e Dang et al. (2023).</>,
+    <>Com uma única execução por configuração, não é possível estimar a variabilidade entre sementes; a atividade avaliativa deve, quando viável, incluir repetições.</>,
+    <>As perturbações de iluminação e nitidez são sintéticas e não representam necessariamente as condições de outro domínio real.</>,
+  ],
+  referencias: [
+    'AKYON, F. C.; ALTINUC, S. O.; TEMIZEL, A. Slicing aided hyper inference and fine-tuning for small object detection. In: IEEE INTERNATIONAL CONFERENCE ON IMAGE PROCESSING (ICIP), 2022. Proceedings [...]. 2022. p. 966-970.',
+    'BARBEDO, J. G. A. Plant disease identification from individual lesions and spots using deep learning. Biosystems Engineering, v. 180, p. 96-107, 2019. DOI: 10.1016/j.biosystemseng.2019.02.002.',
+    'BERGSTRA, J.; BENGIO, Y. Random search for hyper-parameter optimization. Journal of Machine Learning Research, v. 13, p. 281-305, 2012.',
+    'BOCHKOVSKIY, A.; WANG, C.-Y.; LIAO, H.-Y. M. YOLOv4: optimal speed and accuracy of object detection. arXiv, 2004.10934, 2020.',
+    'DANG, F.; CHEN, D.; LU, Y.; LI, Z. YOLOWeeds: a novel benchmark of YOLO object detectors for multi-class weed detection in cotton production systems. Computers and Electronics in Agriculture, v. 205, 107655, 2023. DOI: 10.1016/j.compag.2023.107655.',
+    'DAVID, E. et al. Global Wheat Head Detection (GWHD) dataset: a large and diverse dataset of high-resolution RGB-labelled images to develop and benchmark wheat head detection methods. Plant Phenomics, v. 2020, 3521852, 2020.',
+    'ELFWING, S.; UCHIBE, E.; DOYA, K. Sigmoid-weighted linear units for neural network function approximation in reinforcement learning. Neural Networks, v. 107, p. 3-11, 2018.',
+    'EVERINGHAM, M.; VAN GOOL, L.; WILLIAMS, C. K. I.; WINN, J.; ZISSERMAN, A. The Pascal Visual Object Classes (VOC) challenge. International Journal of Computer Vision, v. 88, p. 303-338, 2010.',
+    'FERREIRA, A. dos S.; FREITAS, D. M.; SILVA, G. G. da; PISTORI, H.; FOLHES, M. T. Weed detection in soybean crops using ConvNets. Computers and Electronics in Agriculture, v. 143, p. 314-324, 2017. DOI: 10.1016/j.compag.2017.10.027.',
+    'GOODFELLOW, I.; BENGIO, Y.; COURVILLE, A. Deep learning. Cambridge: MIT Press, 2016.',
+    'HUANG, J. et al. Speed/accuracy trade-offs for modern convolutional object detectors. In: IEEE CONFERENCE ON COMPUTER VISION AND PATTERN RECOGNITION (CVPR), 2017. Proceedings [...]. 2017. p. 7310-7311.',
+    'JOCHER, G.; QIU, J.; CHAURASIA, A. Ultralytics YOLO. Versão 8.0.0. 2023. Software. Disponível em: https://github.com/ultralytics/ultralytics.',
+    'KAPOOR, S.; NARAYANAN, A. Leakage and the reproducibility crisis in machine-learning-based science. Patterns, v. 4, n. 9, 100804, 2023. DOI: 10.1016/j.patter.2023.100804.',
+    'KOH, P. W. et al. WILDS: a benchmark of in-the-wild distribution shifts. In: INTERNATIONAL CONFERENCE ON MACHINE LEARNING (ICML), 38., 2021. Proceedings [...]. PMLR, v. 139, p. 5637-5664, 2021.',
+    'LECUN, Y.; BOTTOU, L.; BENGIO, Y.; HAFFNER, P. Gradient-based learning applied to document recognition. Proceedings of the IEEE, v. 86, n. 11, p. 2278-2324, 1998.',
+    'LI, X. et al. Generalized focal loss: learning qualified and distributed bounding boxes for dense object detection. Advances in Neural Information Processing Systems, v. 33, p. 21002-21012, 2020.',
+    'LIN, T.-Y. et al. Microsoft COCO: common objects in context. In: EUROPEAN CONFERENCE ON COMPUTER VISION (ECCV), 2014. Proceedings [...]. Cham: Springer, 2014. p. 740-755.',
+    'LOSHCHILOV, I.; HUTTER, F. SGDR: stochastic gradient descent with warm restarts. In: INTERNATIONAL CONFERENCE ON LEARNING REPRESENTATIONS (ICLR), 2017. Proceedings [...]. 2017.',
+    'MINSKY, M.; PAPERT, S. Perceptrons: an introduction to computational geometry. Cambridge: MIT Press, 1969.',
+    'NAIR, V.; HINTON, G. E. Rectified linear units improve restricted Boltzmann machines. In: INTERNATIONAL CONFERENCE ON MACHINE LEARNING (ICML), 27., 2010. Proceedings [...]. 2010. p. 807-814.',
+    'PADILLA, R.; NETTO, S. L.; DA SILVA, E. A. B. A survey on performance metrics for object-detection algorithms. In: INTERNATIONAL CONFERENCE ON SYSTEMS, SIGNALS AND IMAGE PROCESSING (IWSSIP), 2020. Proceedings [...]. 2020. p. 237-242. DOI: 10.1109/IWSSIP48289.2020.9145130.',
+    'ROSENBLATT, F. The perceptron: a probabilistic model for information storage and organization in the brain. Psychological Review, v. 65, n. 6, p. 386-408, 1958.',
+    'RUMELHART, D. E.; HINTON, G. E.; WILLIAMS, R. J. Learning representations by back-propagating errors. Nature, v. 323, p. 533-536, 1986.',
+    'SANTOS, T. T.; DE SOUZA, L. L.; DOS SANTOS, A. A.; AVILA, S. Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, v. 170, 105247, 2020. DOI: 10.1016/j.compag.2020.105247.',
+    'SHORTEN, C.; KHOSHGOFTAAR, T. M. A survey on image data augmentation for deep learning. Journal of Big Data, v. 6, 60, 2019.',
+    'SNOEK, J.; LAROCHELLE, H.; ADAMS, R. P. Practical Bayesian optimization of machine learning algorithms. Advances in Neural Information Processing Systems, v. 25, p. 2951-2959, 2012.',
+    'TETILA, E. C. et al. Detection and classification of soybean pests using deep learning with UAV images. Computers and Electronics in Agriculture, v. 179, 105836, 2020. DOI: 10.1016/j.compag.2020.105836.',
+    'YOSINSKI, J.; CLUNE, J.; BENGIO, Y.; LIPSON, H. How transferable are features in deep neural networks? Advances in Neural Information Processing Systems, v. 27, p. 3320-3328, 2014.',
+    'ZHANG, Y. et al. ByteTrack: multi-object tracking by associating every detection box. In: EUROPEAN CONFERENCE ON COMPUTER VISION (ECCV), 2022. Proceedings [...]. Cham: Springer, 2022. p. 1-21.',
+    'ZHENG, Z. et al. Distance-IoU loss: faster and better learning for bounding box regression. In: AAAI CONFERENCE ON ARTIFICIAL INTELLIGENCE, 34., 2020. Proceedings [...]. 2020. p. 12993-13000.',
   ],
 }

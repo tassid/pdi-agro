@@ -6,117 +6,131 @@ import { LabConversor, LabGSD, LabIoU, LabNMS, LabSplit } from '../labs'
 export const aula1: Aula = {
   id: 'aula1',
   n: 1,
-  titulo: 'Fundamentos de detecção e engenharia de dados',
-  ideia: 'Antes de treinar qualquer rede, é preciso saber que pergunta ela responde, como a resposta é escrita e como medir se ela acertou. O resto é dado bem anotado e bem dividido.',
-  chips: ['imagem como matriz', 'PDI clássico × aprendizado profundo', 'classificar, detectar, segmentar', 'R-CNN, U-Net, YOLO', 'backbone, neck, heads', 'xyxy, COCO, YOLO, polígono', 'IoU e NMS', 'GSD', 'CVAT', 'auditoria', 'divisão por grupo'],
+  titulo: 'Fundamentos de detecção de objetos e engenharia de dados',
+  ideia:
+    'Esta aula estabelece os conceitos necessários antes de qualquer treinamento: a definição da tarefa de visão computacional, a representação das anotações, as medidas de concordância entre previsão e referência, e os procedimentos de anotação, auditoria e partição dos dados que condicionam a validade da avaliação.',
+  chips: ['representação digital da imagem', 'processamento clássico e aprendizado profundo', 'taxonomia das tarefas', 'detectores de um e dois estágios', 'segmentação', 'formatos de anotação', 'IoU e NMS', 'GSD', 'protocolo de anotação', 'auditoria', 'partição por grupo'],
   objetivos: [
-    'Distinguir classificação, detecção, segmentação semântica e de instâncias, e escolher a tarefa certa para um problema do campo pelo custo de anotação.',
-    'Explicar a diferença entre detectores de dois estágios (R-CNN) e de um estágio (YOLO), a função de backbone, neck e heads, e para que serve a U-Net.',
-    'Converter caixas entre xyxy, COCO e YOLO normalizado, e entender o formato de polígono do YOLO-seg.',
-    'Calcular IoU à mão, simular o NMS passo a passo e explicar o efeito dos limiares de confiança e de IoU.',
-    'Calcular o GSD de um voo e prever se o objeto terá pixels suficientes na entrada da rede.',
-    'Escrever um guia de anotação, anotar no CVAT, auditar os rótulos exportados e descrever o banco com estatísticas.',
-    'Dividir um banco de imagens por grupo de coleta sem vazamento entre treino, validação e teste, e provar isso com código.',
+    'Distinguir classificação, detecção, segmentação semântica e segmentação de instâncias, e justificar a escolha da tarefa em função da pergunta agronômica e do custo de anotação.',
+    'Descrever a organização de detectores de dois estágios (família R-CNN), de um estágio (família YOLO) e baseados em transformers (DETR), bem como da U-Net para segmentação.',
+    'Converter caixas delimitadoras entre as representações xyxy, COCO e YOLO, e descrever a representação poligonal usada em segmentação de instâncias.',
+    'Calcular a interseção sobre união (IoU) e executar manualmente a supressão de não máximos (NMS), analisando o efeito dos limiares de confiança e de IoU.',
+    'Calcular a distância de amostragem no solo (GSD) e estimar a resolução efetiva de um objeto na entrada da rede.',
+    'Elaborar um protocolo de anotação, medir a concordância entre anotadores e auditar um conjunto rotulado.',
+    'Particionar um conjunto de imagens por grupo de coleta, evitando vazamento de dados entre treino, validação e teste.',
   ],
   intervaloDepois: 'b13',
   notebook: {
     nome: 'Aula1_Anotacao_Auditoria_Split.ipynb',
     arquivo: 'Aula1_Anotacao_Auditoria_Split.ipynb',
-    descricao: 'Baixa o WGISD (Embrapa), converte formatos, roda um YOLO pré-treinado, calcula IoU e NMS à mão, audita rótulos, descreve o banco e divide por variedade.',
+    descricao: 'Obtenção do WGISD, conversão de formatos, cálculo de GSD, IoU e NMS, auditoria de rótulos, estatísticas descritivas, concordância entre anotadores e partição por variedade.',
   },
   blocos: [
     /* ============================================================ 1.1 */
     {
       id: 'b11',
       cod: '1.1',
-      titulo: 'Do PDI clássico às tarefas de visão',
+      titulo: 'Do processamento clássico às tarefas de visão computacional',
       min: 25,
       tipo: 'conceito',
       slides: [
-        { titulo: 'Para o computador, a foto é uma tabela', img: 'imagem_matriz', pontos: ['Foto de 2048 × 1365 px = 2,8 milhões de pixels', 'Cada pixel tem 3 números de 0 a 255 (R, G, B)', 'Uma foto vira um tensor 1365 × 2048 × 3', 'Tudo o que vem depois é conta nessa tabela'] },
-        { titulo: 'Canais de cor separam coisas diferentes', img: 'canais_cor', pontos: ['RGB mistura cor e brilho', 'HSV separa matiz (H), saturação (S) e brilho (V)', 'No PDI clássico, você escolhe o canal', 'Na rede, ela aprende a combinação'] },
-        { titulo: 'O pipeline que vocês já conhecem', img: 'pipeline_classico', legenda: 'CWFID: cenoura e daninhas fotografadas em campo', pontos: ['Aquisição → realce → segmentação → rotulação → descritores', 'Cada etapa é uma regra escrita por uma pessoa', 'Funciona quando o problema é "verde contra marrom"'] },
-        { titulo: 'A mesma regra num vinhedo', img: 'classico_falha', pontos: ['ExG + Otsu acha folha, não acha cacho de uva verde', 'Trocar de lavoura obriga a reescrever a regra', 'A rede profunda aprende a regra a partir de exemplos'] },
-        { titulo: 'Regra escrita × regra aprendida', pontos: ['Clássico: rápido, explicável, pouco dado, quebra fácil', 'Profundo: robusto, precisa de muitos rótulos e GPU', 'TCC da UTFPR (Salvadori, 2020): HSV deu P = 50%, RetinaNet deu P = 99%', 'Os dois convivem: PDI clássico para pré-processar, auditar e explicar'] },
-        { titulo: 'Quatro perguntas diferentes sobre a mesma foto', img: 'quatro_tarefas', legenda: 'WGISD, Chardonnay: anotação real de caixas e máscaras', pontos: ['Classificação: o que tem na foto?', 'Detecção: onde está e quantos são?', 'Semântica: qual pixel é uva?', 'Instâncias: qual pixel é de qual cacho?'] },
-        { titulo: 'A saída define o rótulo, o rótulo define o orçamento', pontos: ['Classificação: segundos por foto', 'Detecção: 1 a 2 min por foto', 'Semântica: 5 a 15 min por foto', 'Instâncias: a mais cara', 'Escolha a tarefa mais barata que responde à pergunta do produtor'] },
+        { titulo: 'Representação digital da imagem', img: 'imagem_matriz', pontos: ['Imagem colorida: tensor de dimensão altura × largura × 3', 'Cada elemento: intensidade de 0 a 255 (8 bits)', 'Foto do WGISD: 1365 × 2048 × 3 ≈ 8,4 milhões de valores'] },
+        { titulo: 'Espaços de cor', img: 'canais_cor', pontos: ['RGB combina cromaticidade e luminância', 'HSV separa matiz (H), saturação (S) e valor (V)', 'A escolha do espaço altera a separabilidade das classes'] },
+        { titulo: 'Cadeia clássica de processamento', img: 'pipeline_classico', legenda: 'CWFID (HAUG; OSTERMANN, 2014)', pontos: ['Aquisição → realce → segmentação → rotulação → descritores → classificação', 'Índice ExG (WOEBBECKE et al., 1995); limiar de Otsu (OTSU, 1979)', 'Cada etapa é definida explicitamente pelo projetista'] },
+        { titulo: 'Limite das regras definidas manualmente', img: 'classico_falha', pontos: ['Baixo contraste cromático entre objeto e fundo', 'A regra válida para um cultivo não se transfere a outro', 'Motiva a aprendizagem de representações a partir de exemplos'] },
+        { titulo: 'Comparação entre as abordagens', pontos: ['Clássica: interpretável, pouca demanda de dados, sensível a mudanças de cena', 'Aprendizado profundo: maior capacidade de generalização intra-domínio, maior demanda de rótulos e computação', 'Evidência local: Salvadori (2020) comparou HSV e RetinaNet na contagem de milho', 'As abordagens são complementares: pré-processamento, auditoria e linhas de base'] },
+        { titulo: 'Taxonomia das tarefas', img: 'quatro_tarefas', legenda: 'WGISD (SANTOS et al., 2020)', pontos: ['Classificação: rótulo por imagem', 'Detecção: caixa, classe e confiança por objeto', 'Segmentação semântica: classe por pixel', 'Segmentação de instâncias: máscara por objeto'] },
+        { titulo: 'Custo de anotação', pontos: ['Cresce da classificação para a segmentação de instâncias', 'Caixa tradicional: cerca de 35 s por objeto (PAPADOPOULOS et al., 2017)', 'Cliques extremos: cerca de 7 s por objeto, com qualidade equivalente', 'Critério: menor nível de anotação que responde à pergunta de pesquisa'] },
       ],
       teoria: (
         <>
+          <h4>Representação digital da imagem</h4>
           <p>
-            Para o computador uma foto é uma <b>matriz</b>. Uma foto do WGISD tem 2048 × 1365 pixels; cada pixel guarda três números entre 0 e 255, um para cada canal (vermelho, verde, azul). A imagem
-            inteira é um tensor de forma <code>(altura, largura, canais) = (1365, 2048, 3)</code>, com 8,4 milhões de números. Tudo o que fizemos em PDI, e tudo o que a rede vai fazer, é conta em cima
-            dessa tabela.
+            Uma imagem digital colorida é representada como um tensor de dimensão <code>altura × largura × canais</code>. No modelo RGB com 8 bits por canal, cada elemento assume valores inteiros
+            entre 0 e 255. As fotografias do conjunto WGISD (SANTOS et al., 2020), por exemplo, têm 2048 × 1365 pixels, o que corresponde a aproximadamente 8,4 milhões de valores por imagem. Tanto os
+            métodos clássicos de processamento digital de imagens quanto as redes neurais operam sobre essa representação (GONZALEZ; WOODS, 2010).
           </p>
           <p>
-            O <b>pipeline clássico</b> de PDI é <b>aquisição → pré-processamento → segmentação → extração de descritores → classificação</b>. Cada etapa é uma regra escrita por uma pessoa: o índice
-            ExG = 2g − r − b realça o verde, o limiar de Otsu escolhe o corte que maximiza a variância entre as classes, a rotulação de componentes conexos dá um número a cada mancha, e descritores
-            (área, perímetro, circularidade, cor média) alimentam um classificador. É rápido, explicável e funciona muito bem quando o contraste é simples.
+            A escolha do espaço de cor afeta a separabilidade entre classes. O espaço HSV separa a matiz (H), a saturação (S) e o valor (V), o que tende a reduzir a sensibilidade de regras baseadas em cor
+            a variações de iluminação. Em métodos clássicos, essa escolha é feita pelo projetista; em redes convolucionais, a combinação de canais é aprendida durante o treinamento.
+          </p>
+          <h4>Cadeia clássica de processamento</h4>
+          <p>
+            A abordagem clássica organiza a análise em etapas definidas explicitamente: aquisição, pré-processamento, segmentação, extração de descritores e classificação (GONZALEZ; WOODS, 2010). Em
+            aplicações agrícolas, uma combinação frequente é o índice de excesso de verde, ExG = 2g − r − b, calculado sobre as coordenadas cromáticas normalizadas (WOEBBECKE et al., 1995), seguido
+            da limiarização de Otsu, que seleciona o limiar que maximiza a variância entre classes do histograma (OTSU, 1979). A rotulação de componentes conexos e o cálculo de descritores de forma e
+            cor completam a cadeia.
           </p>
           <p>
-            O problema aparece quando o contraste some. Num vinhedo de uva branca, o cacho e a folha têm quase a mesma cor: nenhum limiar de ExG separa os dois. Seria preciso inventar descritores de
-            textura e forma, ajustar à mão e refazer tudo na próxima variedade. O <b>aprendizado profundo</b> troca a regra escrita por <b>exemplos rotulados</b>: a rede aprende sozinha os filtros (a
-            Aula 2 mostra que eles são parentes de Sobel e Laplaciano) e a regra de decisão. O preço muda de lugar: agora a qualidade do modelo é a qualidade dos dados.
+            Essa abordagem é interpretável, computacionalmente barata e exige poucos dados rotulados. Seu desempenho, entretanto, depende da existência de um contraste estável entre objeto e fundo.
+            Quando o objeto e o fundo têm cores semelhantes, como cachos de uvas brancas e folhagem, a regra precisa ser complementada por descritores de textura e forma ajustados manualmente, e o
+            ajuste tende a não se transferir para outros cultivos ou condições de captura. O aprendizado profundo substitui a especificação manual por uma representação aprendida a partir de
+            exemplos rotulados (LECUN; BENGIO; HINTON, 2015), deslocando o principal custo do projeto para a obtenção e a qualidade das anotações. As duas abordagens não são excludentes: métodos
+            clássicos continuam úteis como linha de base, como pré-processamento e como ferramenta de auditoria.
           </p>
-          <p>Antes de escolher a rede, escolha a pergunta. São quatro tarefas, cada uma com uma saída e um custo de anotação:</p>
+          <h4>Taxonomia das tarefas</h4>
+          <p>
+            A escolha do modelo é precedida pela definição da tarefa, que determina a forma da saída e o tipo de anotação necessária. O Quadro 1 resume as quatro tarefas tratadas nesta disciplina.
+          </p>
           <table className="tbl">
-            <thead><tr><th>tarefa</th><th>saída</th><th>rótulo</th><th>custo</th><th>exemplo no campo</th></tr></thead>
+            <caption style={{ captionSide: 'top', textAlign: 'left', fontSize: '0.85rem', marginBottom: 4 }}>Quadro 1. Tarefas de visão computacional, saídas e anotações correspondentes.</caption>
+            <thead><tr><th>tarefa</th><th>saída</th><th>anotação</th><th>exemplo agrícola</th></tr></thead>
             <tbody>
-              <tr><td>classificação</td><td>uma classe por imagem</td><td>uma palavra</td><td>segundos</td><td>folha sadia ou com ferrugem</td></tr>
-              <tr><td>detecção</td><td>caixas + classe + confiança</td><td>retângulos</td><td>1 a 2 min/foto</td><td>contar cachos, bois, espigas</td></tr>
-              <tr><td>segmentação semântica</td><td>classe por pixel</td><td>pintura por pixel</td><td>5 a 15 min/foto</td><td>área de daninha no talhão</td></tr>
-              <tr><td>segmentação de instâncias</td><td>máscara por objeto</td><td>polígono por objeto</td><td>o maior</td><td>tamanho de cada cacho</td></tr>
+              <tr><td>classificação</td><td>uma classe por imagem</td><td>rótulo da imagem</td><td>folha sadia ou com sintoma</td></tr>
+              <tr><td>detecção</td><td>caixa, classe e confiança por objeto</td><td>caixa delimitadora</td><td>contagem de cachos, animais, espigas</td></tr>
+              <tr><td>segmentação semântica</td><td>classe por pixel</td><td>máscara por classe</td><td>área ocupada por plantas daninhas</td></tr>
+              <tr><td>segmentação de instâncias</td><td>máscara por objeto</td><td>polígono por objeto</td><td>área ou volume de cada cacho</td></tr>
             </tbody>
           </table>
           <p>
-            Há ainda tarefas vizinhas que o mesmo framework resolve: <b>estimativa de pose</b> (pontos-chave, por exemplo no corpo do animal), <b>caixas orientadas</b> (OBB, úteis em imagens aéreas
-            onde o objeto está inclinado) e <b>rastreamento</b> (detecção + identidade ao longo do vídeo, que vemos na Aula 2).
+            O custo de anotação cresce da classificação para a segmentação de instâncias. Para caixas delimitadoras, Papadopoulos et al. (2017) reportam cerca de 35 s por caixa no protocolo
+            tradicional usado no ILSVRC e cerca de 7 s com o protocolo de cliques extremos, sem perda de qualidade dos detectores treinados. Recomenda-se, portanto, adotar o menor nível de
+            anotação capaz de responder à pergunta de pesquisa. Outras tarefas suportadas pelos mesmos frameworks incluem estimativa de pose por pontos-chave, caixas orientadas e rastreamento.
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="imagem_matriz" cap="Um cacho de Chardonnay do WGISD e os valores RGB reais de um bloco de 8 × 8 pixels. A rede recebe exatamente estes números." />
-          <Fig n="canais_cor" cap="Os seis canais de uma foto de Syrah. O cacho escuro se separa no V e no H; no G ele quase some entre as folhas." />
-          <Fig n="pipeline_classico" cap="Pipeline clássico numa foto real do CWFID (Haug e Ostermann, 2014): o índice ExG e o limiar de Otsu separam planta de solo e a rotulação conta os objetos." />
-          <Fig n="classico_falha" cap="A mesma regra aplicada ao WGISD (Santos et al., 2020). O cacho de uva verde tem a cor da folha: a regra falha e não há limiar que salve." />
+          <Fig n="imagem_matriz" cap="Figura 1. Recorte de uma imagem do WGISD e valores RGB de um bloco de 8 × 8 pixels." />
+          <Fig n="canais_cor" cap="Figura 2. Canais RGB e HSV de uma imagem de Syrah do WGISD." />
+          <Fig n="pipeline_classico" cap="Figura 3. Cadeia clássica (ExG, Otsu e componentes conexos) aplicada a uma imagem do CWFID (HAUG; OSTERMANN, 2014)." />
+          <Fig n="classico_falha" cap="Figura 4. A mesma regra aplicada a uma imagem do WGISD (SANTOS et al., 2020): a segmentação recupera a folhagem, mas não distingue os cachos de uva branca." />
           <Caso
-            tipo="TCC da UTFPR"
+            tipo="trabalho de conclusão de curso, UTFPR"
             titulo="Identificação de plantas de milho utilizando imagens aéreas obtidas por VANTs"
-            autores="Salvadori"
-            onde="Ciência da Computação, UTFPR Ponta Grossa, 2020"
+            autores="Enzo Salvadori"
+            onde="Bacharelado em Ciência da Computação, UTFPR Ponta Grossa, 2020"
             link="https://repositorio.utfpr.edu.br/jspui/bitstream/1/26481/1/identificacaomilhoimagensaereas.pdf"
-            resumo={<p>A mesma pergunta (onde estão as plantas de milho?) resolvida de dois jeitos: com regra escrita (HSV e componentes conexos) e com uma rede detectora (RetinaNet). É a comparação deste bloco num trabalho do nosso curso.</p>}
-            pipeline={['Imagens aéreas de VANT sobre lavoura de milho', 'Método 1: limiar em HSV + componentes conexos', 'Método 2: RetinaNet, detector de um estágio', 'Comparação por precisão e revocação']}
+            resumo={<p>O trabalho compara, no mesmo conjunto de imagens aéreas, um método baseado em limiarização no espaço HSV e componentes conexos com um detector convolucional de um estágio (RetinaNet). Permite discutir, num contexto local, o custo e o benefício de cada abordagem.</p>}
+            pipeline={['Imagens aéreas de VANT sobre lavoura de milho', 'Método 1: limiarização em HSV e componentes conexos', 'Método 2: detector RetinaNet', 'Avaliação por precisão e revocação']}
             numeros={[{ v: '50,4%', l: 'precisão, HSV' }, { v: '81,6%', l: 'revocação, HSV' }, { v: '99,0%', l: 'precisão, RetinaNet' }, { v: '97,6%', l: 'revocação, RetinaNet' }]}
-            discutir={['Por que o método clássico tem revocação razoável e precisão baixa? O que ele está contando a mais?', 'Quanto tempo de anotação a RetinaNet exigiu e o método clássico não?']}
+            discutir={['Como foram definidos os conjuntos de treino e de teste? Há independência espacial entre eles?', 'Qual o custo de anotação exigido pelo detector e não exigido pelo método clássico?', 'Os resultados se mantêm em outro talhão, outra data ou outra altura de voo?']}
           />
-          <Fig n="quatro_tarefas" cap="Uma foto do WGISD, quatro tarefas. As caixas e máscaras são as anotações reais do banco." />
-          <Callout kind="campo">
-            <p>Quer saber quantos cachos tem na fileira para estimar produção? Detecção basta. Quer o volume de cada cacho? Aí precisa de instâncias, e o custo de anotar multiplica por dez.</p>
-          </Callout>
+          <Fig n="quatro_tarefas" cap="Figura 5. As quatro tarefas aplicadas à mesma imagem do WGISD, com anotações originais do conjunto." />
         </>
       ),
       pratica: (
         <>
-          <p><b>Dinâmica em duplas (8 min).</b> Para cada problema abaixo, escolham a tarefa e justifiquem pelo custo de anotação. Depois confiram nos exercícios.</p>
-          <Code title="Python · a foto como matriz" code={`import numpy as np
+          <p><b>Atividade em duplas (8 min).</b> Para cada problema dos exercícios abaixo, indicar a tarefa adequada e justificar a escolha em função da pergunta e do custo de anotação.</p>
+          <Code title="Python · a imagem como tensor" code={`import numpy as np
 from PIL import Image
 !wget -q https://raw.githubusercontent.com/thsant/wgisd/master/data/CDY_2017.jpg
 img = np.array(Image.open("CDY_2017.jpg"))
 print(img.shape, img.dtype)          # (1365, 2048, 3) uint8
-print(img[700:703, 300:303])         # 3 x 3 pixels, 3 canais cada
-r, g, b = [img[..., k].astype(float) for k in range(3)]
-exg = 2 * g - r - b                  # o índice da aula de PDI
-print("ExG médio:", exg.mean().round(1))`} />
+print(img[700:703, 300:303])         # bloco 3 x 3, três canais
+f = img.astype(float) / 255
+s = f.sum(axis=2) + 1e-6
+r, g, b = f[..., 0] / s, f[..., 1] / s, f[..., 2] / s
+exg = 2 * g - r - b                  # Woebbecke et al. (1995)
+print("ExG médio:", exg.mean().round(3))`} />
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'Contar frangos mortos num aviário por câmera no teto. Qual tarefa?', r: <p>Detecção: precisa saber onde e quantos, e uma caixa por ave é suficiente. Classificação não conta; segmentação é cara demais para o ganho.</p> },
-        { nivel: 'básico', q: 'Medir a porcentagem de área foliar com ferrugem na soja. Qual tarefa?', r: <p>Segmentação semântica: a resposta é uma área, então precisa da classe de cada pixel (lesão × folha × fundo). Não importa separar lesão por lesão.</p> },
-        { nivel: 'médio', q: 'Separar grãos de café bons e defeituosos numa esteira, com câmera que fotografa um grão por vez.', r: <p>Classificação: cada imagem tem um único objeto centralizado. Se a câmera visse vários grãos por foto, viraria detecção.</p> },
-        { nivel: 'médio', q: 'Uma foto do WGISD tem 2048 × 1365 px em RGB de 8 bits. Quantos bytes ela ocupa descompactada? E reduzida para 640 × 427?', r: <p>2048 × 1365 × 3 = 8.386.560 bytes (cerca de 8 MB). Reduzida: 640 × 427 × 3 = 819.840 bytes. A rede vê 10 vezes menos informação, e é por isso que objetos pequenos sofrem.</p> },
-        { nivel: 'desafio', q: 'Um pulverizador precisa aplicar herbicida só sobre a daninha, com bicos espaçados de 25 cm. Detecção ou segmentação? Justifique pela resolução do bico.', r: <p>Com bicos a cada 25 cm, basta saber em qual faixa de 25 cm há daninha: uma caixa (detecção) já dá essa posição, e anotar caixas é muito mais barato. Segmentação só compensaria com bicos de alta resolução ou para estimar dose por área.</p> },
+        { nivel: 'básico', q: 'Estimar o número de aves mortas em um aviário a partir de uma câmera fixa no teto. Qual tarefa é adequada?', r: <p>Detecção, pois a pergunta envolve localização e contagem de objetos individuais; a caixa delimitadora é suficiente. A classificação não fornece contagem e a segmentação impõe custo de anotação sem ganho para a pergunta.</p> },
+        { nivel: 'básico', q: 'Estimar a porcentagem de área foliar com lesões de ferrugem na soja. Qual tarefa é adequada?', r: <p>Segmentação semântica, pois a variável de interesse é uma área. Não é necessário distinguir lesões individuais.</p> },
+        { nivel: 'médio', q: 'Separar grãos de café conformes e defeituosos em uma esteira, com uma imagem por grão.', r: <p>Classificação, pois cada imagem contém um único objeto. Se a imagem contivesse vários grãos, a tarefa passaria a ser detecção.</p> },
+        { nivel: 'médio', q: 'Calcular o número de bytes de uma imagem RGB de 8 bits com 2048 × 1365 pixels e da mesma imagem reduzida para 640 × 427.', r: <p>2048 × 1365 × 3 = 8.386.560 bytes; 640 × 427 × 3 = 819.840 bytes. A redução corresponde a cerca de 10,2 vezes menos informação na entrada do modelo, o que afeta principalmente objetos pequenos.</p> },
+        { nivel: 'desafio', q: 'Um pulverizador seletivo possui bicos espaçados de 25 cm. Discutir se detecção ou segmentação é mais adequada para acioná-los.', r: <p>Com resolução de atuação de 25 cm, basta identificar em qual faixa há planta daninha; a caixa delimitadora fornece essa informação com menor custo de anotação. A segmentação seria justificável com atuadores de maior resolução ou quando a dose depende da área foliar.</p> },
       ],
     },
     /* ============================================================ 1.2 */
@@ -127,80 +141,86 @@ print("ExG médio:", exg.mean().round(1))`} />
       min: 50,
       tipo: 'conceito',
       slides: [
-        { titulo: 'Dois estágios contra um estágio', img: 'rcnn_vs_yolo', pontos: ['R-CNN: propõe regiões, depois classifica cada uma', 'YOLO: uma passada pela rede prevê tudo', 'Hoje a diferença de precisão é pequena; a de velocidade continua grande'] },
-        { titulo: 'A família R-CNN em três passos', pontos: ['R-CNN (2014): ~2.000 regiões, uma CNN por região, lento', 'Fast R-CNN (2015): uma CNN na imagem, recorta o mapa de características', 'Faster R-CNN (2015): uma rede de propostas (RPN) substitui a busca seletiva', 'Mask R-CNN (2017): acrescenta uma máscara por objeto'] },
-        { titulo: 'U-Net: uma resposta por pixel', img: 'unet_cwfid', pontos: ['Codificador reduz a imagem e entende o contexto', 'Decodificador volta ao tamanho original', 'Conexões de atalho devolvem o detalhe da borda', 'Saída: um mapa de classes do tamanho da foto'] },
-        { titulo: 'Como o YOLO divide a imagem', img: 'grade_yolo', pontos: ['A célula que contém o centro do objeto é a responsável', 'Cada célula prevê caixa, classe e confiança', 'Tudo numa passada só: tempo real'] },
-        { titulo: 'Backbone, neck e heads', img: 'piramide_p3p5', pontos: ['Backbone: CNN que extrai características', 'Neck: mistura três resoluções (P3, P4, P5)', 'Heads: caixa, classe e confiança em cada posição', 'Stride 8 para pequenos, 32 para grandes'] },
-        { titulo: 'Com âncoras e sem âncoras', img: 'ancora_vs_livre', pontos: ['YOLOv2 a v5: ajustam caixas-modelo (âncoras)', 'YOLOv8 em diante: prevê distâncias até as bordas', 'Sem âncoras: menos hiperparâmetros para ajustar ao banco'] },
-        { titulo: 'A mesma caixa, três formatos', img: 'formatos_caixa', formula: <>YOLO: x<sub>c</sub> = (x₁+x₂)/2W · y<sub>c</sub> = (y₁+y₂)/2H · w = (x₂−x₁)/W · h = (y₂−y₁)/H</> },
-        { titulo: 'Segmentação no formato YOLO', img: 'mascara_poligono', pontos: ['Caixa: classe + 4 números', 'Máscara: um bit por pixel (pesado)', 'YOLO-seg: classe + vértices do polígono normalizados', 'No CVAT: ferramenta de polígono'] },
-        { titulo: 'data.yaml: o mapa do banco', formula: <>path · train · val · test · names</>, pontos: ['Um .txt por imagem, mesmo nome, pasta labels/ espelhando images/', 'Imagem sem objeto: .txt vazio (exemplo negativo, ajuda!)', 'Classes numeradas a partir de 0, na mesma ordem do names'] },
+        { titulo: 'Detectores de dois estágios e de um estágio', img: 'rcnn_vs_yolo', pontos: ['Dois estágios: propostas de região, depois classificação e regressão', 'Um estágio: previsão densa em uma única passagem', 'O compromisso entre velocidade e acurácia depende de extrator, resolução e número de propostas (HUANG et al., 2017)'] },
+        { titulo: 'Família R-CNN', pontos: ['R-CNN: busca seletiva e uma CNN por região (GIRSHICK et al., 2014)', 'Faster R-CNN: rede de propostas (RPN) treinável (REN et al., 2017)', 'Mask R-CNN: ramo adicional de máscara (HE et al., 2017)'] },
+        { titulo: 'Família YOLO', img: 'grade_yolo', pontos: ['Formulação original: grade S × S, previsão por célula (REDMON et al., 2016)', 'Versões posteriores: extratores e pescoços multiescala', 'Implementação de referência nesta disciplina: Ultralytics (JOCHER; QIU; CHAURASIA, 2023)'] },
+        { titulo: 'Extrator, pescoço e cabeças', img: 'piramide_p3p5', pontos: ['Extrator (backbone): mapas de características', 'Pescoço (neck): fusão multiescala, inspirada em FPN (LIN et al., 2017)', 'Cabeças (heads): caixa, classe e confiança por posição'] },
+        { titulo: 'Âncoras e formulação sem âncoras', img: 'ancora_vs_livre', pontos: ['Com âncoras: ajuste de caixas-modelo pré-definidas', 'Sem âncoras: regressão das distâncias às bordas (TIAN et al., 2019)', 'Reduz hiperparâmetros dependentes da geometria do conjunto'] },
+        { titulo: 'Detectores baseados em transformers', pontos: ['DETR: previsão de conjunto, correspondência bipartida, sem NMS (CARION et al., 2020)', 'RT-DETR: variante em tempo real (ZHAO et al., 2024)', 'Alternativa relevante quando o NMS limita desempenho ou latência'] },
+        { titulo: 'U-Net para segmentação', img: 'unet_cwfid', pontos: ['Codificador e decodificador simétricos', 'Conexões de atalho preservam detalhe espacial (RONNEBERGER; FISCHER; BROX, 2015)', 'Saída: mapa de classes com a resolução da entrada'] },
+        { titulo: 'Representações da caixa delimitadora', img: 'formatos_caixa', formula: <>YOLO: x<sub>c</sub> = (x₁+x₂)/2W · y<sub>c</sub> = (y₁+y₂)/2H · w = (x₂−x₁)/W · h = (y₂−y₁)/H</> },
+        { titulo: 'Representação poligonal', img: 'mascara_poligono', pontos: ['Máscara binária: um valor por pixel', 'Polígono: vértices normalizados do contorno', 'Formato YOLO-seg: classe seguida dos vértices'] },
       ],
       teoria: (
         <>
-          <h4>Dois estágios</h4>
+          <h4>Detectores de dois estágios</h4>
           <p>
-            A família <b>R-CNN</b> (Girshick et al., 2014) resolve a detecção em dois passos. Primeiro <b>propõe regiões</b> que talvez contenham objetos (cerca de 2.000, pela busca seletiva, que agrupa
-            superpixels parecidos). Depois, cada região é recortada, redimensionada e passa por uma CNN que <b>classifica</b> e <b>ajusta a caixa</b>. A evolução foi tirar trabalho repetido: o Fast
-            R-CNN roda a CNN uma vez só na imagem inteira e recorta o mapa de características; o Faster R-CNN troca a busca seletiva por uma rede de propostas (RPN) treinável; o Mask R-CNN acrescenta
-            um ramo que pinta a máscara de cada objeto. Santos et al. (2020) usaram o Mask R-CNN no WGISD.
+            A família R-CNN organiza a detecção em duas etapas. Na formulação original, cerca de 2.000 regiões candidatas são geradas por busca seletiva (UIJLINGS et al., 2013) e cada região é
+            classificada por uma rede convolucional (GIRSHICK et al., 2014). O Faster R-CNN substituiu a busca seletiva por uma rede de propostas de regiões treinável e compartilhou o processamento
+            convolucional entre as etapas (REN et al., 2017); o Mask R-CNN acrescentou um ramo de segmentação por instância (HE et al., 2017). Santos et al. (2020) empregaram o Mask R-CNN no WGISD.
           </p>
-          <h4>Um estágio</h4>
+          <h4>Detectores de um estágio</h4>
           <p>
-            O <b>YOLO</b> (Redmon et al., 2016) olha a imagem uma vez só. A ideia original: dividir a imagem numa grade S × S; a célula que contém o centro de um objeto é responsável por ele e prevê
-            a caixa (x, y, w, h), a confiança de que há objeto e a probabilidade de cada classe. Um YOLO moderno tem três partes:
+            Os detectores de um estágio produzem previsões densas em uma única passagem pela rede. Na formulação original do YOLO, a imagem é dividida em uma grade S × S e a célula que contém o centro
+            de um objeto é responsável por prever sua caixa, a confiança e as probabilidades de classe (REDMON et al., 2016). Detectores atuais dessa família organizam-se em três componentes:
           </p>
           <ol>
-            <li><b>Backbone</b>: a CNN que transforma pixels em mapas de características, cada vez menores e mais abstratos.</li>
+            <li><b>Extrator de características</b> (backbone): rede convolucional que produz mapas de características em resoluções decrescentes.</li>
             <li>
-              <b>Neck</b>: combina mapas de três resoluções. Com entrada de 640 px, P3 tem stride 8 (grade 80 × 80, boa para objetos pequenos), P4 tem stride 16 (40 × 40) e P5 tem stride 32
-              (20 × 20, para objetos grandes).
+              <b>Pescoço</b> (neck): combina mapas de diferentes resoluções, em arranjo derivado das redes de pirâmide de características (LIN et al., 2017). Para entrada de 640 × 640, os níveis
+              P3, P4 e P5 têm passos (strides) de 8, 16 e 32 pixels, isto é, grades de 80 × 80, 40 × 40 e 20 × 20, totalizando 8.400 posições de previsão.
             </li>
-            <li><b>Heads</b>: em cada posição de cada mapa, devolvem a caixa, a classe e a confiança. São 80² + 40² + 20² = 8.400 posições candidatas para uma entrada de 640 × 640.</li>
+            <li><b>Cabeças</b> (heads): em cada posição, estimam a caixa, a classe e a confiança.</li>
           </ol>
           <p>
-            Até o YOLOv5, cada posição ajustava <b>âncoras</b>: caixas-modelo com proporções fixas, calculadas por k-means sobre o banco. Do YOLOv8 em diante o detector é <b>sem âncoras</b>: cada
-            ponto prevê diretamente as distâncias até as quatro bordas (l, t, r, b). Isso tira um hiperparâmetro sensível, porque cacho de uva (alto e estreito) e boi visto de cima (largo) pedem âncoras
-            diferentes.
+            Versões anteriores ajustavam caixas de referência pré-definidas (âncoras), cujas dimensões são estimadas a partir do conjunto de dados. Formulações sem âncoras, como a do FCOS (TIAN et
+            al., 2019), regridem diretamente as distâncias de cada ponto às quatro bordas do objeto, eliminando hiperparâmetros dependentes da geometria das caixas.
+          </p>
+          <h4>Compromisso entre velocidade e acurácia</h4>
+          <p>
+            A comparação entre famílias de detectores não admite uma resposta única. Huang et al. (2017) mostram que o compromisso entre velocidade, memória e acurácia depende do extrator de
+            características, da resolução de entrada e do número de propostas, e não apenas da arquitetura de detecção. Detectores baseados em transformers, como o DETR, tratam a detecção como
+            previsão de conjunto com correspondência bipartida e dispensam a supressão de não máximos (CARION et al., 2020); o RT-DETR adapta essa formulação a aplicações em tempo real e reporta, no
+            COCO, desempenho superior a modelos YOLO contemporâneos em velocidade e acurácia (ZHAO et al., 2024). A escolha da arquitetura deve, portanto, considerar a restrição de execução (servidor,
+            computador embarcado, dispositivo móvel) e ser validada no próprio conjunto de dados. Nesta disciplina, a família YOLO é adotada por razões didáticas e de disponibilidade de
+            implementação, não por superioridade geral.
           </p>
           <h4>Segmentação</h4>
           <p>
-            A <b>U-Net</b> (Ronneberger et al., 2015) é a referência para segmentação semântica: um <b>codificador</b> que encolhe a imagem e ganha contexto, um <b>decodificador</b> que volta ao tamanho
-            original, e <Term def="ligações que copiam os mapas do codificador direto para o decodificador, para recuperar o detalhe espacial perdido na redução">conexões de atalho</Term> entre os dois
-            lados para recuperar a borda fina. A saída é um mapa de classes do tamanho da foto, treinado com perda por pixel (entropia cruzada ou Dice).
+            A U-Net é uma arquitetura de referência para segmentação semântica: um codificador reduz a resolução espacial e aumenta o contexto, um decodificador restaura a resolução original e{' '}
+            <Term def="ligações que copiam os mapas do codificador para o decodificador, recuperando a informação espacial perdida na redução de resolução">conexões de atalho</Term> preservam o detalhe
+            das bordas (RONNEBERGER; FISCHER; BROX, 2015).
           </p>
           <h4>Formatos de anotação</h4>
-          <p>O mesmo retângulo aparece escrito de três jeitos, e confundir um com o outro é o erro mais comum do primeiro treino:</p>
           <ol>
-            <li><b>xyxy</b> (Pascal VOC, OpenCV, saída do Ultralytics): canto superior esquerdo e canto inferior direito, em pixels.</li>
-            <li><b>COCO</b>: canto superior esquerdo, largura e altura, em pixels, todas as anotações num único JSON.</li>
-            <li><b>YOLO</b>: um <code>.txt</code> por imagem, uma linha por objeto: <code>classe x_centro y_centro largura altura</code>, tudo dividido pelo tamanho da imagem.</li>
-            <li><b>YOLO-seg</b>: <code>classe x1 y1 x2 y2 ... xn yn</code>, os vértices do polígono, também normalizados.</li>
+            <li><b>xyxy</b> (Pascal VOC): cantos superior esquerdo e inferior direito, em pixels (EVERINGHAM et al., 2010).</li>
+            <li><b>COCO</b>: canto superior esquerdo, largura e altura, em pixels, em arquivo JSON único (LIN et al., 2014).</li>
+            <li><b>YOLO</b>: um arquivo de texto por imagem, com uma linha <code>classe x_centro y_centro largura altura</code> por objeto, normalizada pelas dimensões da imagem.</li>
+            <li><b>YOLO-seg</b>: <code>classe x1 y1 … xn yn</code>, com os vértices do polígono normalizados.</li>
           </ol>
           <p>
-            <b>Exemplo resolvido.</b> Imagem 2048 × 1365, caixa xyxy (479, 365, 866, 638). Largura = 387, altura = 273. Centro = (672,5; 501,5). YOLO: x<sub>c</sub> = 672,5 / 2048 = 0,3284;
-            y<sub>c</sub> = 501,5 / 1365 = 0,3674; w = 387 / 2048 = 0,1890; h = 273 / 1365 = 0,2000. COCO: [479, 365, 387, 273].
+            <b>Exemplo resolvido.</b> Imagem de 2048 × 1365 pixels e caixa xyxy (479, 365, 866, 638). Largura 387, altura 273, centro (672,5; 501,5). Em YOLO: x<sub>c</sub> = 0,3284;
+            y<sub>c</sub> = 0,3674; w = 0,1890; h = 0,2000. Em COCO: [479, 365, 387, 273].
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="rcnn_vs_yolo" cap="À esquerda, as regiões candidatas que o primeiro estágio do R-CNN gera nesta foto real (busca seletiva do OpenCV). À direita, a grade do YOLO e as caixas anotadas no WGISD." />
-          <Fig n="grade_yolo" cap="Grade 8 × 8 sobre um vinhedo de Sauvignon Blanc. A célula azul contém o centro do cacho e é a responsável por prevê-lo." />
-          <Fig n="piramide_p3p5" cap="As três escalas do neck sobre uma foto real reduzida para 640 px. Em amarelo, os cachos que cada escala atende melhor pelo tamanho." />
-          <Fig n="ancora_vs_livre" cap="Âncoras (tracejadas) contra a previsão sem âncoras: o ponto amarelo prevê as quatro distâncias até as bordas do cacho." />
-          <Fig n="unet_cwfid" cap="A saída que uma U-Net aprende no CWFID: cada pixel vira cenoura, daninha ou fundo. Rótulos reais do banco." />
-          <Fig n="formatos_caixa" cap="Um cacho de Cabernet Franc com a caixa escrita nos três formatos. Confira a conta no conversor abaixo." />
-          <Fig n="mascara_poligono" cap="A máscara real de um cacho do WGISD convertida em polígono (cv2.findContours + approxPolyDP), que é como o YOLO-seg e o CVAT guardam a segmentação." />
+          <Fig n="rcnn_vs_yolo" cap="Figura 6. Regiões candidatas geradas por busca seletiva (OpenCV) e grade de previsão de um detector de um estágio, sobre imagem do WGISD." />
+          <Fig n="grade_yolo" cap="Figura 7. Grade 8 × 8; em azul, as células que contêm o centro de cachos anotados." />
+          <Fig n="piramide_p3p5" cap="Figura 8. Níveis P3, P4 e P5 sobre imagem reduzida a 640 pixels; em amarelo, os cachos cujo tamanho corresponde a cada nível." />
+          <Fig n="ancora_vs_livre" cap="Figura 9. Formulação com âncoras (caixas tracejadas) e sem âncoras (distâncias l, t, r, b a partir de um ponto)." />
+          <Fig n="unet_cwfid" cap="Figura 10. Rótulo por pixel do CWFID (cultura e planta daninha), correspondente à saída esperada de uma U-Net." />
+          <Fig n="formatos_caixa" cap="Figura 11. Uma caixa do WGISD nas representações xyxy, COCO e YOLO." />
+          <Fig n="mascara_poligono" cap="Figura 12. Máscara de instância do WGISD convertida em polígono (cv2.findContours e cv2.approxPolyDP)." />
           <Callout kind="pegadinha">
-            <p>No YOLO a coordenada é do <b>centro</b>, não do canto. Se você exportar xyxy normalizado e chamar de YOLO, o treino roda sem erro e o mAP fica perto de zero.</p>
+            <p>No formato YOLO, as coordenadas referem-se ao centro da caixa. A exportação de cantos normalizados sob esse formato não gera erro de execução, mas invalida o treinamento; por isso, a conversão deve ser verificada visualmente antes do treino.</p>
           </Callout>
         </>
       ),
       pratica: (
         <>
-          <p><b>No quadro (10 min).</b> Faça as conversões dos exercícios à mão e confira no conversor.</p>
+          <p>Resolver manualmente as conversões dos exercícios e verificar os resultados no conversor.</p>
           <LabConversor />
           <Code title="Python · conversões" code={`def xyxy_para_yolo(x1, y1, x2, y2, W, H):
     return ((x1 + x2) / 2 / W, (y1 + y2) / 2 / H, (x2 - x1) / W, (y2 - y1) / H)
@@ -221,73 +241,69 @@ names:
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'Imagem 1280 × 720. Um boi ocupa de (400, 200) até (560, 330). Escreva em COCO e em YOLO (classe 0).', r: <p>COCO: [400, 200, 160, 130]. YOLO: 0 0.3750 0.3681 0.1250 0.1806.</p> },
-        { nivel: 'básico', q: 'A linha YOLO "0 0.5 0.5 0.2 0.4" numa imagem 1000 × 500. Quais os cantos em pixels?', r: <p>Centro (500, 250), largura 200, altura 200. Cantos: (400, 150) e (600, 350).</p> },
-        { nivel: 'médio', q: 'Com entrada 640 × 640 e strides 8, 16 e 32, quantas posições candidatas o detector avalia? E com imgsz 1280?', r: <p>640: 80² + 40² + 20² = 6.400 + 1.600 + 400 = 8.400. Com 1280: 160² + 80² + 40² = 33.600, quatro vezes mais, e cerca de quatro vezes mais cálculo.</p> },
-        { nivel: 'médio', q: 'Um aluno exportou "0 0.10 0.20 0.30 0.40" achando que era YOLO, mas eram os cantos x1 y1 x2 y2 normalizados. Qual era a caixa YOLO correta?', r: <p>xc = (0,10 + 0,30)/2 = 0,20; yc = (0,20 + 0,40)/2 = 0,30; w = 0,20; h = 0,20. Linha correta: 0 0.20 0.30 0.20 0.20. A caixa errada fica deslocada e o dobro do tamanho.</p> },
-        { nivel: 'desafio', q: 'Por que um detector de dois estágios tende a ir melhor em objetos pequenos e raros, e por que mesmo assim o YOLO domina na lavoura?', r: <p>O segundo estágio olha cada região com mais calma e o desequilíbrio entre fundo e objeto é tratado pelas propostas. Mas na lavoura o modelo roda embarcado (drone, trator, celular) e precisa de tempo real; o YOLO moderno, com neck multiescala, chegou perto em precisão sendo muitas vezes mais rápido.</p> },
+        { nivel: 'básico', q: 'Imagem de 1280 × 720 pixels; objeto entre (400, 200) e (560, 330). Escrever a caixa em COCO e em YOLO (classe 0).', r: <p>COCO: [400, 200, 160, 130]. YOLO: 0 0.3750 0.3681 0.1250 0.1806.</p> },
+        { nivel: 'básico', q: 'Dada a linha YOLO "0 0.5 0.5 0.2 0.4" em uma imagem de 1000 × 500, determinar os cantos em pixels.', r: <p>Centro (500, 250), largura 200, altura 200. Cantos: (400, 150) e (600, 350).</p> },
+        { nivel: 'médio', q: 'Com entrada 640 × 640 e passos 8, 16 e 32, quantas posições de previsão existem? E com entrada 1280 × 1280?', r: <p>640: 80² + 40² + 20² = 8.400. 1280: 160² + 80² + 40² = 33.600, quatro vezes mais posições e custo computacional aproximadamente proporcional.</p> },
+        { nivel: 'médio', q: 'A linha "0 0.10 0.20 0.30 0.40" foi exportada como YOLO, mas contém cantos normalizados (x1 y1 x2 y2). Qual seria a linha correta?', r: <p>x<sub>c</sub> = 0,20; y<sub>c</sub> = 0,30; w = 0,20; h = 0,20. Linha correta: 0 0.20 0.30 0.20 0.20.</p> },
+        { nivel: 'desafio', q: 'Discutir critérios para escolher entre um detector de dois estágios, um de um estágio e um baseado em transformer em uma aplicação embarcada em trator.', r: <p>Os critérios incluem latência no hardware de destino, memória disponível, tamanho típico dos objetos e acurácia exigida. A literatura mostra que o compromisso depende de extrator, resolução e implementação (HUANG et al., 2017; ZHAO et al., 2024); a decisão deve se apoiar em medições no próprio conjunto de validação e no dispositivo de execução.</p> },
       ],
     },
     /* ============================================================ 1.3 */
     {
       id: 'b13',
       cod: '1.3',
-      titulo: 'IoU, NMS, GSD e primeira inferência',
+      titulo: 'IoU, NMS, GSD e inferência com modelo pré-treinado',
       min: 35,
       tipo: 'conceito',
       slides: [
-        { titulo: 'IoU: quanto as caixas concordam', img: 'iou_exemplos', formula: <>IoU = área(A ∩ B) / área(A ∪ B)</>, pontos: ['1 = idênticas, 0 = sem contato', 'Acerto (TP) se IoU ≥ limiar, em geral 0,5'] },
-        { titulo: 'Conta resolvida', formula: <>A = (100,100,200,200) · B = (150,120,250,220)</>, pontos: ['Interseção: x de 150 a 200, y de 120 a 200 → 50 × 80 = 4.000', 'Áreas: 10.000 cada', 'União: 10.000 + 10.000 − 4.000 = 16.000', 'IoU = 4.000 / 16.000 = 0,25 → não é acerto'] },
-        { titulo: 'Objeto pequeno sofre mais', img: 'iou_vs_deslocamento', pontos: ['10 px de erro num objeto de 24 px: IoU cai para 0,2', 'O mesmo erro num cacho de 200 px: IoU 0,8', 'Por isso a resolução (GSD) importa tanto'] },
-        { titulo: 'NMS: uma caixa por objeto', img: 'nms_antes_depois', pontos: ['1. descarta caixas com confiança < conf', '2. ordena pela confiança', '3. mantém a melhor e apaga as que têm IoU ≥ iou com ela', '4. repete até a fila acabar'] },
-        { titulo: 'NMS passo a passo', img: 'nms_passos' },
-        { titulo: 'O limiar de confiança', img: 'conf_limiares', pontos: ['conf baixo: acha tudo e muito lixo', 'conf alto: só certezas, perde cachos', 'O valor certo depende do custo de cada erro'] },
-        { titulo: 'GSD: quantos centímetros cabem num pixel', img: 'gsd_resolucao', formula: <>GSD = altura de voo × tamanho do pixel do sensor ÷ distância focal</>, pontos: ['40 m, pixel de 2,4 µm, focal 8,8 mm → 1,1 cm/px', 'Cacho de 15 cm ≈ 14 px na foto', 'Reduzida de 5472 para 640 px: menos de 2 px'] },
-        { titulo: 'Primeira inferência: COCO não conhece uva', pontos: ['yolo11n.pt foi treinado em 80 classes urbanas', 'Na foto do vinhedo ele procura "broccoli", "apple" ou nada', 'É a motivação para anotar o nosso banco'] },
+        { titulo: 'Interseção sobre união (IoU)', img: 'iou_exemplos', formula: <>IoU = área(A ∩ B) / área(A ∪ B)</>, pontos: ['Equivalente ao índice de Jaccard', 'Critério de correspondência: IoU ≥ limiar (PASCAL VOC: 0,5)'] },
+        { titulo: 'Exemplo resolvido', formula: <>A = (100,100,200,200) · B = (150,120,250,220)</>, pontos: ['Interseção: 50 × 80 = 4.000', 'União: 10.000 + 10.000 − 4.000 = 16.000', 'IoU = 0,25'] },
+        { titulo: 'Sensibilidade ao tamanho do objeto', img: 'iou_vs_deslocamento', pontos: ['Um mesmo erro absoluto reduz mais o IoU de objetos pequenos', 'Relevante para frutos, insetos, plântulas'] },
+        { titulo: 'Supressão de não máximos (NMS)', img: 'nms_antes_depois', pontos: ['1. Descartar previsões com confiança < conf', '2. Ordenar por confiança', '3. Manter a primeira; remover as que têm IoU ≥ iou com ela', '4. Repetir; executado por classe'] },
+        { titulo: 'NMS: execução passo a passo', img: 'nms_passos' },
+        { titulo: 'Limiar de confiança', img: 'conf_limiares', pontos: ['Limiar baixo: maior revocação, menor precisão', 'Limiar alto: maior precisão, menor revocação', 'Escolha deve ser feita no conjunto de validação'] },
+        { titulo: 'Variantes do NMS', pontos: ['Soft-NMS: reduz a confiança em vez de remover (BODLA et al., 2017)', 'Detectores sem NMS: correspondência um a um (CARION et al., 2020)'] },
+        { titulo: 'Distância de amostragem no solo (GSD)', img: 'gsd_resolucao', formula: <>GSD = H · p / f</>, pontos: ['H: altura de voo; p: tamanho do pixel do sensor; f: distância focal', 'Determina quantos pixels o objeto ocupa na imagem', 'A redução para imgsz diminui ainda mais esse número'] },
       ],
       teoria: (
         <>
+          <h4>Interseção sobre união</h4>
           <p>
-            <b>IoU</b> (intersection over union, ou índice de Jaccard) mede a concordância entre duas caixas: a área de interseção dividida pela área da união. Vale 1 para caixas idênticas e 0 para
-            caixas que não se tocam. É com ele que se decide se uma caixa prevista acertou a anotada: com limiar 0,5 (o "50" do mAP50), IoU ≥ 0,5 é <b>verdadeiro positivo</b> (TP); abaixo disso a
-            caixa prevista é <b>falso positivo</b> (FP) e o objeto que ficou sem par é <b>falso negativo</b> (FN).
+            A interseção sobre união, equivalente ao índice de Jaccard, mede a sobreposição entre duas regiões: a área da interseção dividida pela área da união. Em detecção, uma previsão é
+            considerada verdadeiro positivo (TP) quando seu IoU com uma anotação ainda não associada é maior ou igual a um limiar; o protocolo do PASCAL VOC adota 0,5 (EVERINGHAM et al., 2010) e o do
+            COCO calcula a média em dez limiares, de 0,50 a 0,95 (LIN et al., 2014). Previsões sem correspondência são falsos positivos (FP) e anotações sem correspondência, falsos negativos (FN).
           </p>
-          <p>Para duas caixas xyxy A e B:</p>
           <p className="slide-formula">
-            interseção = max(0, min(x₂ᴬ, x₂ᴮ) − max(x₁ᴬ, x₁ᴮ)) × max(0, min(y₂ᴬ, y₂ᴮ) − max(y₁ᴬ, y₁ᴮ)) · IoU = interseção / (área A + área B − interseção)
+            I = max(0, min(x₂ᴬ, x₂ᴮ) − max(x₁ᴬ, x₁ᴮ)) · max(0, min(y₂ᴬ, y₂ᴮ) − max(y₁ᴬ, y₁ᴮ)) · IoU = I / (área A + área B − I)
           </p>
           <p>
-            O IoU é implacável com objetos pequenos: o mesmo erro absoluto de 10 pixels leva um cacho de 200 px a IoU 0,82 e uma baga de 24 px a 0,21. Por isso modelos com bom mAP em cachos podem
-            ir mal em bagas, insetos ou plântulas.
+            Como o IoU é uma razão de áreas, o mesmo erro absoluto de localização produz reduções maiores em objetos pequenos: um deslocamento diagonal de 10 pixels resulta em IoU de 0,82 para um
+            objeto de 200 × 200 pixels e de 0,21 para um objeto de 24 × 24 pixels (Figura 14).
           </p>
+          <h4>Supressão de não máximos</h4>
           <p>
-            A rede devolve muitas caixas por objeto, todas um pouco deslocadas, porque várias posições vizinhas da grade "veem" o mesmo cacho. O <b>NMS</b> (non maximum suppression) limpa essa saída:
+            Detectores densos produzem várias previsões sobrepostas para um mesmo objeto. A supressão de não máximos (NMS) seleciona, por classe, a previsão de maior confiança e remove as que se
+            sobrepõem a ela acima de um limiar de IoU, repetindo o processo até esgotar a lista. Dois parâmetros controlam o resultado: o limiar de confiança (<code>conf</code>), que regula o
+            compromisso entre precisão e revocação, e o limiar de IoU do NMS, que regula a remoção de duplicatas em cenas com objetos muito próximos. O Soft-NMS reduz a confiança das previsões
+            sobrepostas em vez de removê-las (BODLA et al., 2017); detectores baseados em correspondência um a um dispensam a etapa (CARION et al., 2020).
           </p>
-          <ol>
-            <li>descarta as caixas com confiança abaixo de <code>conf</code>;</li>
-            <li>ordena as restantes da maior para a menor confiança;</li>
-            <li>pega a primeira, guarda, e apaga todas as que têm IoU ≥ <code>iou</code> com ela;</li>
-            <li>repete com a próxima da fila até ela acabar. O NMS é feito por classe.</li>
-          </ol>
+          <h4>Distância de amostragem no solo</h4>
           <p>
-            Dois botões mandam no resultado: <code>conf</code> alto demais perde objeto (FN), baixo demais aceita sujeira (FP); <code>iou</code> do NMS alto demais deixa duplicatas, baixo demais apaga
-            cachos encostados que são objetos diferentes. O YOLO26 é treinado para dispensar o NMS na saída (uma previsão por objeto), mas o conceito continua no centro da avaliação.
-          </p>
-          <p>
-            <b>GSD</b> (ground sample distance) é o tamanho no chão de um pixel: GSD = H × p / f, com H a altura de voo, p o tamanho do pixel do sensor e f a distância focal. Exemplo: drone a 40 m,
-            pixel de 2,4 µm e focal de 8,8 mm → 40 × 2,4 / 8,8 = 10,9 mm ≈ 1,1 cm/px. Um cacho de 15 cm ocupa uns 14 px na foto. Se a foto de 5472 px for reduzida para <code>imgsz=640</code>, o
-            cacho chega à rede com menos de 2 px: impossível detectar.
+            A distância de amostragem no solo (GSD) é a dimensão, no terreno, representada por um pixel: GSD = H · p / f, em que H é a altura de voo, p o tamanho do pixel do sensor e f a distância
+            focal. Para H = 40 m, p = 2,4 µm e f = 8,8 mm, obtém-se GSD ≈ 1,1 cm/pixel; um objeto de 15 cm ocupa então cerca de 14 pixels. Se a imagem de 5.472 pixels de largura for reduzida para 640
+            pixels na entrada da rede, o mesmo objeto passa a ocupar menos de 2 pixels. O planejamento da coleta e a escolha da resolução de entrada devem, portanto, considerar o tamanho dos objetos de
+            interesse.
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="iou_exemplos" cap="Três caixas previstas sobre o mesmo cacho do WGISD. Só a primeira passa no limiar de 0,5." />
-          <Fig n="iou_vs_deslocamento" cap="IoU em função do deslocamento para objetos de 24, 64 e 200 pixels." />
-          <Fig n="nms_antes_depois" cap="Saída bruta de um detector (simulada sobre os cachos reais anotados) antes e depois do limiar de confiança e do NMS." />
-          <Fig n="nms_passos" cap="O algoritmo do NMS executado passo a passo sobre três cachos vizinhos." />
-          <Fig n="conf_limiares" cap="O mesmo conjunto de detecções com três limiares de confiança. Verde acerta um cacho real; vermelho é falso positivo." />
-          <Fig n="gsd_resolucao" cap="O mesmo cacho reduzido 4, 8 e 16 vezes: é o que acontece ao subir o drone ou ao treinar com imgsz pequeno." />
+          <Fig n="iou_exemplos" cap="Figura 13. Três previsões sobre um cacho anotado do WGISD e respectivos valores de IoU." />
+          <Fig n="iou_vs_deslocamento" cap="Figura 14. IoU em função do deslocamento para objetos de 24, 64 e 200 pixels (cálculo analítico)." />
+          <Fig n="nms_antes_depois" cap="Figura 15. Previsões simuladas a partir das caixas anotadas, antes e depois da filtragem por confiança e do NMS. As previsões não provêm de um modelo treinado." />
+          <Fig n="nms_passos" cap="Figura 16. Execução do NMS passo a passo sobre três cachos vizinhos (previsões simuladas)." />
+          <Fig n="conf_limiares" cap="Figura 17. Efeito do limiar de confiança sobre previsões simuladas: acertos (verde) e falsos positivos (vermelho)." />
+          <Fig n="gsd_resolucao" cap="Figura 18. Um mesmo cacho com resolução reduzida por fatores de 4, 8 e 16." />
         </>
       ),
       pratica: (
@@ -295,167 +311,168 @@ names:
           <LabIoU />
           <LabNMS />
           <LabGSD />
-          <p><b>No Colab (10 min).</b> Primeira inferência com um modelo pré-treinado no COCO sobre uma foto do WGISD. Observe o que o modelo inventa e com que confiança.</p>
+          <p><b>Inferência com modelo pré-treinado (10 min).</b> Aplicar um modelo treinado no COCO, que não contém a classe uva, a uma imagem do WGISD e registrar as classes e confianças previstas. O objetivo é evidenciar a necessidade de um conjunto rotulado para o domínio.</p>
           <Code code={`!pip -q install ultralytics
 !wget -q https://raw.githubusercontent.com/thsant/wgisd/master/data/CDY_2017.jpg
 from ultralytics import YOLO
-modelo = YOLO("yolo11n.pt")            # pesos do COCO: 80 classes, nenhuma é uva
+modelo = YOLO("yolo11n.pt")            # treinado no COCO (80 classes)
 for conf in [0.05, 0.25, 0.5]:
     r = modelo.predict("CDY_2017.jpg", conf=conf, iou=0.5, verbose=False)[0]
-    print(conf, [(modelo.names[int(c)], round(float(s), 2)) for c, s in zip(r.boxes.cls, r.boxes.conf)])
-r.show()`} />
-          <Callout kind="prof"><p>O modelo costuma achar "broccoli", "apple", "potted plant" ou nada. Use isso para abrir o intervalo: por que precisamos anotar o nosso próprio banco?</p></Callout>
+    print(conf, [(modelo.names[int(c)], round(float(s), 2)) for c, s in zip(r.boxes.cls, r.boxes.conf)])`} />
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'Duas caixas 100 × 100, deslocadas 50 px na horizontal. Qual o IoU?', r: <p>Interseção 50 × 100 = 5.000. União 10.000 + 10.000 − 5.000 = 15.000. IoU = 0,33.</p> },
-        { nivel: 'básico', q: 'Caixa prevista inteiramente dentro da real, com metade da área. IoU?', r: <p>Interseção = área da prevista = 0,5A. União = A. IoU = 0,5: passa no limiar 0,5 por um fio.</p> },
-        { nivel: 'médio', q: 'Detecções (conf): A 0,9; B 0,8; C 0,7; D 0,3. IoU(A,B) = 0,7; IoU(A,C) = 0,2; IoU(B,C) = 0,6; D sem sobreposição. Com conf = 0,25 e NMS iou = 0,5, quais ficam?', r: <p>Fila: A, B, C, D. Mantém A; apaga B (0,7 ≥ 0,5); C fica (0,2 com A). Próxima: C, mantém. D mantém. Resultado: A, C, D. Note que B não apaga C, porque B já tinha saído.</p> },
-        { nivel: 'médio', q: 'Drone a 60 m, pixel de 3,3 µm, focal 10 mm. Qual o GSD? Uma plântula de 5 cm tem quantos pixels?', r: <p>GSD = 60 × 3,3 / 10 = 19,8 mm ≈ 2 cm/px. Plântula de 5 cm ≈ 2,5 px: não dá para detectar. Precisa voar a uns 15 m (0,5 cm/px, 10 px).</p> },
-        { nivel: 'desafio', q: 'Num pomar, as copas se encostam muito. O NMS com iou = 0,7 deixa duplicatas; com 0,3 apaga árvores. Proponha uma saída.', r: <p>Opções: usar um limiar intermediário escolhido na validação; usar Soft-NMS (reduz a confiança em vez de apagar); treinar segmentação de instâncias; ou usar um modelo sem NMS (YOLO26). E avaliar pelo erro de contagem, que é o que importa no pomar.</p> },
+        { nivel: 'básico', q: 'Calcular o IoU entre duas caixas de 100 × 100 pixels deslocadas 50 pixels na horizontal.', r: <p>Interseção 5.000; união 15.000; IoU = 0,33.</p> },
+        { nivel: 'básico', q: 'Uma caixa prevista está contida na caixa de referência e tem metade de sua área. Qual o IoU?', r: <p>Interseção = 0,5A e união = A; IoU = 0,5.</p> },
+        { nivel: 'médio', q: 'Previsões com confiança A 0,9; B 0,8; C 0,7; D 0,3. IoU(A,B) = 0,7; IoU(A,C) = 0,2; IoU(B,C) = 0,6; D sem sobreposição. Com conf = 0,25 e limiar de NMS 0,5, quais previsões permanecem?', r: <p>A é mantida; B é removida (0,7 ≥ 0,5); C permanece (0,2 em relação a A); D permanece. Resultado: A, C e D. B não remove C porque já foi eliminada.</p> },
+        { nivel: 'médio', q: 'Calcular o GSD para H = 60 m, p = 3,3 µm e f = 10 mm, e o número de pixels ocupados por uma plântula de 5 cm.', r: <p>GSD = 60 × 3,3 / 10 = 19,8 mm/pixel ≈ 2 cm/pixel; a plântula ocupa cerca de 2,5 pixels, valor insuficiente para detecção confiável. Seria necessário reduzir a altura de voo ou usar maior distância focal.</p> },
+        { nivel: 'desafio', q: 'Em um pomar com copas contíguas, o NMS com limiar 0,7 mantém duplicatas e com limiar 0,3 remove árvores distintas. Propor alternativas e um critério de avaliação.', r: <p>Alternativas: limiar intermediário selecionado na validação, Soft-NMS (BODLA et al., 2017), segmentação de instâncias, métodos baseados em densidade (OSCO et al., 2020) ou detectores sem NMS (CARION et al., 2020). O critério deve refletir a finalidade, por exemplo o erro absoluto de contagem por parcela.</p> },
       ],
     },
     /* ============================================================ 1.4 */
     {
       id: 'b14',
       cod: '1.4',
-      titulo: 'Engenharia de anotação no CVAT',
+      titulo: 'Protocolo de anotação no CVAT',
       min: 45,
       tipo: 'conceito',
       slides: [
-        { titulo: 'Três pessoas, três verdades', img: 'ambiguidade_anotacao', pontos: ['Caixa justa ou folgada?', 'Cacho encostado é um objeto ou dois?', 'Sem guia, o modelo aprende a média das dúvidas'] },
-        { titulo: 'Casos-limite reais', img: 'casos_limite', pontos: ['Cortado pela borda', 'Pequeno, ao fundo', 'Encostados', 'Com folhas na frente'] },
-        { titulo: 'Guia de anotação da turma', pontos: ['Definição de cada classe com 2 fotos de exemplo', 'O que NÃO é a classe (folha seca, sombra)', 'Regra de borda: justa no contorno visível', 'Oclusão: anota se ≥ 30% visível', 'Objetos encostados: uma caixa por objeto', 'Fundo distante: ignorar (regra do WGISD)'] },
-        { titulo: 'Concordância entre anotadores', formula: <>concordância = média do IoU entre as caixas casadas de A e B</>, pontos: ['Anotar 10 fotos em dupla, sem combinar', 'Casar as caixas por IoU e medir', 'Abaixo de 0,7: o guia está vago'] },
-        { titulo: 'CVAT: projeto → tarefa → job', pontos: ['Projeto guarda as classes (labels)', 'Tarefa recebe as imagens e é dividida em jobs', 'Cada job tem anotador e revisor', 'Estados: annotation → validation → acceptance'] },
-        { titulo: 'Ferramentas certas para cada tarefa', pontos: ['Retângulo: detecção', 'Polígono e pincel: segmentação', 'Tag: classificação', 'Pontos: contagem e pose', 'Interpolação entre quadros: vídeo', 'Modelos automáticos para pré-anotar e corrigir'] },
-        { titulo: 'Exportar sem surpresa', pontos: ['Formato "Ultralytics YOLO Detection" ou "YOLO 1.1"', 'Conferir a versão do CVAT antes da aula', 'Abrir o zip e contar imagens e .txt', 'Rodar o auditor do Lab 1.5 antes de treinar'] },
+        { titulo: 'Variabilidade entre anotadores', img: 'ambiguidade_anotacao', pontos: ['Ajuste da caixa ao contorno', 'Objetos contíguos', 'Sem protocolo explícito, a variabilidade é incorporada ao modelo'] },
+        { titulo: 'Casos-limite no WGISD', img: 'casos_limite', pontos: ['Objeto cortado pela borda', 'Objeto pequeno ou distante', 'Objetos contíguos', 'Oclusão por folhagem'] },
+        { titulo: 'Conteúdo mínimo de um protocolo', pontos: ['Definição operacional de cada classe, com exemplos positivos e negativos', 'Regra de ajuste da caixa', 'Critério de inclusão por fração visível', 'Tratamento de objetos contíguos, cortados e distantes', 'Imagens sem objetos: arquivo de rótulos vazio'] },
+        { titulo: 'Concordância entre anotadores', formula: <>IoU médio entre caixas correspondentes · fração de caixas sem correspondência</>, pontos: ['Anotação independente de um subconjunto', 'Correspondência por IoU', 'Revisão do protocolo nos casos de discordância'] },
+        { titulo: 'Erros de rótulo em conjuntos públicos', pontos: ['Northcutt, Athalye e Mueller (2021) estimam erros de rótulo em conjuntos de teste amplamente usados', 'Erros no teste podem alterar a ordenação entre modelos', 'Revisão e auditoria fazem parte do método'] },
+        { titulo: 'Organização no CVAT', pontos: ['Projeto: definição das classes', 'Tarefa: conjunto de imagens', 'Job: fração atribuída a um anotador, com etapas de anotação, validação e aceite', 'Ferramentas: retângulo, polígono, pincel, pontos, rótulo de imagem, interpolação em vídeo'] },
+        { titulo: 'Exportação', pontos: ['Formatos YOLO ou COCO, conforme a versão do CVAT', 'Verificação da contagem de imagens e arquivos de rótulo', 'Auditoria automática antes do treinamento (bloco 1.5)'] },
       ],
       teoria: (
         <>
           <p>
-            Anotar é medir, e toda medida precisa de protocolo. Dois anotadores sem regra comum produzem caixas diferentes para o mesmo cacho; a rede aprende essa incerteza e o mAP encontra um teto que
-            nenhum hiperparâmetro sobe. Um banco pequeno e consistente costuma valer mais que um banco grande e contraditório.
+            A anotação é um procedimento de medição e, como tal, requer protocolo. Diferenças sistemáticas entre anotadores introduzem ruído nos rótulos, que se reflete tanto no treinamento quanto na
+            avaliação. Northcutt, Athalye e Mueller (2021) documentaram erros de rótulo em conjuntos de teste de uso corrente e mostraram que esses erros podem alterar a ordenação entre modelos, o que
+            justifica tratar a qualidade da anotação como parte do método experimental.
           </p>
-          <p>Um <b>guia de anotação</b> responde, sempre com exemplos visuais:</p>
+          <p>Um protocolo de anotação deve especificar, com exemplos visuais:</p>
           <ol>
-            <li>O que é cada classe e o que <i>não</i> é (cacho × folha seca × sombra × poste da espaldeira).</li>
-            <li>Onde a caixa encosta: no contorno visível, sem folga, sem incluir a folha.</li>
-            <li>Oclusão: a partir de quanto visível o objeto é anotado (por exemplo, 30%), e se a caixa cobre a parte visível ou a estimada.</li>
-            <li>Objeto cortado pela borda da foto, borrado, ou muito pequeno ao fundo.</li>
-            <li>Objetos encostados: um por caixa, mesmo quando é difícil separar.</li>
-            <li>Imagens sem objeto: entram no banco com <code>.txt</code> vazio; elas ensinam a rede a não ver cacho onde não há.</li>
+            <li>A definição operacional de cada classe e os casos que não pertencem a ela (por exemplo, folhas secas, sombras e estruturas de condução).</li>
+            <li>A regra de ajuste da caixa ao contorno visível do objeto.</li>
+            <li>O critério de inclusão de objetos parcialmente ocluídos, por exemplo uma fração mínima visível, e se a caixa cobre a parte visível ou a extensão estimada.</li>
+            <li>O tratamento de objetos cortados pela borda da imagem, desfocados, distantes ou contíguos.</li>
+            <li>O tratamento de imagens sem objetos de interesse, que permanecem no conjunto com arquivo de rótulos vazio e atuam como exemplos negativos.</li>
           </ol>
           <p>
-            Para medir se o guia funciona, use a <b>concordância entre anotadores</b>: duas pessoas anotam as mesmas fotos, as caixas são casadas por IoU e calcula-se o IoU médio e a fração de caixas
-            sem par. Se a concordância está baixa, o problema está no guia, não nas pessoas.
+            A consistência do protocolo pode ser avaliada pela <b>concordância entre anotadores</b>: um subconjunto de imagens é anotado de forma independente por duas pessoas, as caixas são associadas
+            por IoU e reportam-se o IoU médio das correspondências e a fração de caixas sem correspondência. Valores baixos indicam ambiguidade no protocolo e orientam sua revisão.
           </p>
           <p>
-            No <b>CVAT</b> (cvat.ai, código aberto, também instalável no servidor do laboratório), o trabalho se organiza em <b>projeto</b> (onde ficam as classes), <b>tarefa</b> (um lote de imagens) e{' '}
-            <b>job</b> (a fatia de um anotador, com etapas de anotação, validação e aceite). Ferramentas: retângulo, polígono, pincel, pontos, tag e interpolação entre quadros de vídeo. Modelos
-            automáticos podem pré-anotar, e o humano corrige: muito mais rápido, mas o viés do modelo entra no banco se ninguém revisar.
+            O CVAT (Computer Vision Annotation Tool) organiza o trabalho em projetos, nos quais se definem as classes; tarefas, que agrupam imagens; e jobs, que distribuem as imagens entre anotadores
+            com etapas de anotação, validação e aceite. A ferramenta oferece retângulos, polígonos, pincel, pontos, rótulos de imagem e interpolação entre quadros de vídeo, além de suporte a
+            pré-anotação por modelos. A pré-anotação reduz o tempo de trabalho, mas pode transferir ao conjunto os erros sistemáticos do modelo usado, razão pela qual exige revisão humana.
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="ambiguidade_anotacao" cap="Três critérios diferentes na mesma foto do WGISD. O anotador A segue o guia do banco original; B e C são os erros mais comuns em turma." />
-          <Fig n="casos_limite" cap="Casos-limite reais do WGISD com as caixas como o banco as anotou." />
-          <Callout kind="campo"><p>O README do WGISD diz que cachos muito ao fundo devem ser ignorados e explica como foram tratadas as oclusões. Leiam essa seção antes de escrever o guia da dupla.</p></Callout>
+          <Fig n="ambiguidade_anotacao" cap="Figura 19. Três critérios de anotação aplicados à mesma imagem. O primeiro corresponde às anotações originais do WGISD; os demais foram gerados para ilustrar variações comuns." />
+          <Fig n="casos_limite" cap="Figura 20. Casos-limite do WGISD com as caixas originais do conjunto." />
+          <Callout kind="campo"><p>A documentação do WGISD descreve os critérios adotados para cachos distantes e ocluídos. Recomenda-se sua leitura antes da redação do protocolo da dupla (SANTOS et al., 2020).</p></Callout>
         </>
       ),
       pratica: (
         <>
           <ol>
-            <li><b>Rodada cega (10 min).</b> Cada um anota as mesmas 3 fotos no CVAT, sem combinar nada.</li>
-            <li><b>Comparação (10 min).</b> Projetar as anotações lado a lado e medir a concordância com o código abaixo.</li>
-            <li><b>Guia da turma (15 min).</b> Escrever juntos as regras e colar 1 print de cada caso-limite.</li>
-            <li><b>Demonstração (10 min).</b> Criar projeto, tarefa e job no CVAT; exportar e abrir o zip.</li>
+            <li><b>Anotação independente (10 min).</b> Cada estudante anota as mesmas três imagens no CVAT, sem combinação prévia.</li>
+            <li><b>Comparação (10 min).</b> Cálculo da concordância com o código abaixo e discussão das divergências.</li>
+            <li><b>Protocolo (15 min).</b> Redação coletiva das regras, com uma imagem de exemplo para cada caso-limite.</li>
+            <li><b>Demonstração (10 min).</b> Criação de projeto, tarefa e job no CVAT; exportação e inspeção do arquivo gerado.</li>
           </ol>
           <Code title="Python · concordância entre dois anotadores" code={`import numpy as np
-def ler(f, W, H):
-    out = []
-    for l in open(f):
-        c, xc, yc, w, h = map(float, l.split())
-        out.append([(xc - w/2) * W, (yc - h/2) * H, (xc + w/2) * W, (yc + h/2) * H])
-    return out
-
 def concordancia(A, B, lim=0.5):
+    """A, B: listas de caixas xyxy do mesmo conjunto de imagens."""
     usados, ious = set(), []
     for a in A:
         cand = [(iou(a, b), j) for j, b in enumerate(B) if j not in usados]
         v, j = max(cand, default=(0, -1))
-        if v >= lim: usados.add(j); ious.append(v)
+        if v >= lim:
+            usados.add(j); ious.append(v)
     sem_par = len(A) + len(B) - 2 * len(ious)
-    return np.mean(ious) if ious else 0, sem_par`} />
-          <Code title="estrutura esperada depois do export" code={`dataset/
-  data.yaml           # path, train, val, test, names
+    return (np.mean(ious) if ious else 0.0), sem_par`} />
+          <Code title="estrutura esperada após a exportação" code={`dataset/
+  data.yaml
   images/train/*.jpg
-  labels/train/*.txt  # um por imagem, mesmo nome (vazio = sem objeto)
+  labels/train/*.txt   # um arquivo por imagem; vazio quando não há objetos
   images/val/...
   labels/val/...`} />
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'Por que imagens sem nenhum objeto devem entrar no banco?', r: <p>Elas ensinam a rede que aquele fundo (folha, solo, poste) não é a classe. Sem negativos, o modelo tende a desenhar caixas em qualquer coisa parecida, e a precisão cai.</p> },
-        { nivel: 'médio', q: 'Dois anotadores marcaram 20 e 24 caixas nas mesmas fotos; 18 casaram com IoU médio 0,78. Quantas caixas sem par? O guia está bom?', r: <p>Sem par: 20 + 24 − 2 × 18 = 8. A concordância de posição é boa (0,78), mas 8 caixas sem par indicam dúvida sobre o que anotar (provavelmente cachos ao fundo ou ocluídos). O guia precisa de uma regra mais clara de inclusão.</p> },
-        { nivel: 'médio', q: 'A turma usou pré-anotação automática e só corrigiu o que viu errado. Que viés isso pode introduzir?', r: <p>O banco herda o que o modelo automático não vê: se ele erra cachos escuros ou pequenos e ninguém percebe, esses objetos ficam sem rótulo e viram "fundo" para o modelo novo. Revisão obrigatória e amostragem de fotos para conferir do zero ajudam.</p> },
-        { nivel: 'desafio', q: 'Escreva a regra do guia para cachos parcialmente atrás de folhas, de modo que duas pessoas cheguem na mesma caixa.', r: <p>Exemplo: "Anotar se pelo menos 30% do cacho está visível. A caixa cobre só a parte visível, do primeiro ao último pixel de baga visível, sem estimar a parte escondida. Se a folha divide o cacho em duas partes visíveis, uma única caixa cobre as duas." O importante é ser verificável por outra pessoa.</p> },
+        { nivel: 'básico', q: 'Justificar a inclusão de imagens sem objetos de interesse no conjunto de treinamento.', r: <p>Essas imagens fornecem exemplos negativos de fundo (folhagem, solo, estruturas), reduzindo previsões espúrias e, portanto, falsos positivos.</p> },
+        { nivel: 'médio', q: 'Dois anotadores marcaram 20 e 24 caixas nas mesmas imagens; 18 foram associadas com IoU médio de 0,78. Calcular as caixas sem correspondência e interpretar.', r: <p>20 + 24 − 2 × 18 = 8 caixas sem correspondência. A localização é consistente (IoU médio 0,78), mas há divergência sobre quais objetos anotar, o que indica necessidade de critério de inclusão mais preciso.</p> },
+        { nivel: 'médio', q: 'Discutir o viés que a pré-anotação automática sem revisão sistemática pode introduzir.', r: <p>Objetos que o modelo de pré-anotação não detecta tendem a permanecer sem rótulo e passam a ser tratados como fundo, reproduzindo no novo conjunto os erros sistemáticos daquele modelo. Revisão obrigatória e anotação independente de uma amostra mitigam o problema.</p> },
+        { nivel: 'desafio', q: 'Redigir uma regra verificável para cachos parcialmente ocluídos por folhas.', r: <p>Exemplo: "Anotar o cacho quando pelo menos 30% de sua extensão estiver visível. A caixa abrange apenas a parte visível, do primeiro ao último pixel de baga visível. Quando a folha divide o cacho em partes visíveis, uma única caixa abrange todas as partes." A regra deve permitir que outro anotador reproduza a mesma caixa.</p> },
       ],
     },
     /* ============================================================ 1.5 */
     {
       id: 'b15',
       cod: '1.5',
-      titulo: 'Laboratório 1: anotação, auditoria e divisão segura',
+      titulo: 'Laboratório 1: anotação, auditoria e partição dos dados',
       min: 50,
       tipo: 'lab',
       slides: [
-        { titulo: 'Auditar antes de treinar', img: 'auditoria_rotulos', pontos: ['Toda imagem tem .txt? Todo .txt tem imagem?', 'Classe existe no data.yaml?', 'Coordenadas entre 0 e 1, largura e altura > 0?', 'Caixas duplicadas (IoU > 0,9 na mesma imagem)?'] },
-        { titulo: 'Conheça o banco antes de treinar', img: 'estatisticas_banco', pontos: ['Quantos objetos por foto?', 'Que fração da foto o objeto ocupa? (define imgsz)', 'Onde ficam os centros? (viés de posição)', 'Qual a proporção das caixas?'] },
-        { titulo: 'Fotos vizinhas são quase gêmeas', img: 'quase_iguais', pontos: ['Mesma sessão, mesma luz, mesmas plantas', 'Correlação de cor perto de 1', 'Uma no treino e a outra no teste = cola'] },
-        { titulo: 'Dividir por grupo, não por foto', img: 'split_por_grupo', pontos: ['Grupo = voo, dia, talhão, propriedade, variedade', 'O grupo inteiro vai para um só conjunto', 'Treino 70%, validação 15%, teste 15% dos grupos'] },
-        { titulo: 'Para que serve cada conjunto', pontos: ['Treino: ajusta os pesos', 'Validação: escolhe época, hiperparâmetros, limiares', 'Teste: aberto uma vez, no fim, para o número do artigo', 'Teste usado para decidir vira validação, e o resultado fica otimista'] },
+        { titulo: 'Auditoria de rótulos', img: 'auditoria_rotulos', pontos: ['Correspondência entre imagens e arquivos de rótulo', 'Classes existentes no arquivo de configuração', 'Coordenadas no intervalo [0, 1] e dimensões positivas', 'Duplicatas na mesma imagem'] },
+        { titulo: 'Estatística descritiva do conjunto', img: 'estatisticas_banco', pontos: ['Objetos por imagem', 'Fração da imagem ocupada pelo objeto', 'Distribuição espacial dos centros', 'Razão de aspecto das caixas'] },
+        { titulo: 'Dependência entre observações', img: 'quase_iguais', pontos: ['Imagens de uma mesma sessão são fortemente correlacionadas', 'A hipótese de independência da partição aleatória não se sustenta', 'Consequência: subestimação do erro de generalização'] },
+        { titulo: 'Partição por grupo', img: 'split_por_grupo', pontos: ['Validação cruzada em blocos (ROBERTS et al., 2017)', 'Grupo: sessão, talhão, propriedade, data, variedade', 'Cada grupo pertence a um único conjunto'] },
+        { titulo: 'Vazamento de dados', pontos: ['Informação do teste disponível no treinamento ou na seleção do modelo', 'Identificado como causa recorrente de resultados não reprodutíveis (KAPOOR; NARAYANAN, 2023)', 'Formas comuns: partição inadequada, aumento de dados antes da partição, seleção de modelo no teste'] },
+        { titulo: 'Funções dos conjuntos', pontos: ['Treino: ajuste dos parâmetros', 'Validação: seleção de época, hiperparâmetros e limiares', 'Teste: estimativa final, consultado uma única vez'] },
       ],
       teoria: (
         <>
+          <h4>Auditoria e descrição do conjunto</h4>
           <p>
-            Um banco anotado tem erros, sempre. A <b>auditoria</b> procura os que quebram o treino em silêncio: imagem sem rótulo, rótulo sem imagem, classe que não existe, coordenada fora de [0, 1],
-            caixa de largura zero, duplicatas e imagens corrompidas. O Ultralytics avisa sobre alguns ao montar o cache, mas descarta rótulos ruins sem parar o treino: é fácil treinar com metade do
-            banco sem perceber.
+            Antes do treinamento, o conjunto rotulado deve ser auditado quanto a inconsistências que não interrompem a execução, mas alteram o resultado: imagens sem rótulo, rótulos sem imagem,
+            classes inexistentes, coordenadas fora do intervalo [0, 1], caixas de dimensão nula e duplicatas. Recomenda-se ainda descrever o conjunto por estatísticas como número de objetos por
+            imagem, distribuição do tamanho relativo das caixas, distribuição espacial dos centros e razão de aspecto. Essas estatísticas fundamentam decisões posteriores, como a resolução de entrada e
+            as transformações de aumento de dados.
+          </p>
+          <h4>Dependência entre observações e partição por grupo</h4>
+          <p>
+            A partição aleatória pressupõe observações independentes. Em dados agrícolas essa hipótese raramente se sustenta: imagens de uma mesma sessão, talhão ou data compartilham iluminação,
+            sensor e, muitas vezes, os mesmos indivíduos. Roberts et al. (2017) mostram que ignorar estruturas temporais, espaciais ou hierárquicas na validação leva à subestimação do erro de
+            predição e recomendam a validação em blocos sempre que houver estrutura de dependência nos dados. Em visão computacional, isso corresponde a particionar por grupo de coleta, de modo que
+            cada grupo pertença a um único conjunto.
           </p>
           <p>
-            Depois de auditar, <b>descreva o banco</b>: objetos por foto, distribuição de tamanho das caixas (que fração da foto o objeto ocupa), posição dos centros e proporção largura/altura. Esses
-            números decidem o <code>imgsz</code>, o uso de fatiamento e o augmentation.
+            Essa questão se insere no problema mais amplo do vazamento de dados. Kapoor e Narayanan (2023), em levantamento de revisões anteriores, identificaram vazamento em 294 artigos de 17
+            disciplinas e propuseram uma taxonomia de oito tipos. Entre as formas mais comuns em visão computacional estão a partição sem respeito aos grupos, a aplicação de aumento de dados antes da
+            partição e o uso do conjunto de teste para selecionar modelos ou hiperparâmetros.
           </p>
+          <h4>Funções dos conjuntos</h4>
           <p>
-            O erro metodológico mais grave é o <b>vazamento</b> (data leakage). Fotos tiradas em sequência no mesmo voo, ou do mesmo talhão no mesmo dia, são quase iguais. Se a divisão é aleatória por
-            foto, irmãs gêmeas caem no treino e no teste, e o modelo é avaliado em imagens que, na prática, já viu. O resultado é otimista e não se repete na fazenda seguinte. A solução é dividir por{' '}
-            <b>grupo de coleta</b>: voo, dia, talhão, propriedade ou variedade. Ao escrever o artigo, declare o critério de divisão; banca boa pergunta isso primeiro.
-          </p>
-          <p>
-            Por último, os três conjuntos têm papéis diferentes. <b>Treino</b> ajusta os pesos. <b>Validação</b> escolhe tudo o que é decisão humana: época de parada, hiperparâmetros, limiar de
-            confiança. <b>Teste</b> é aberto uma vez, no fim. Se você olhou o teste para escolher alguma coisa, ele virou validação.
+            O conjunto de <b>treino</b> é usado para ajustar os parâmetros do modelo; o de <b>validação</b>, para todas as decisões de projeto (época de parada, hiperparâmetros, limiares); e o de{' '}
+            <b>teste</b>, para a estimativa final de desempenho, consultado uma única vez. Quando o teste orienta alguma decisão, passa a cumprir a função de validação e a estimativa resultante tende a
+            ser otimista.
           </p>
         </>
       ),
       exemplo: (
         <>
-          <Fig n="auditoria_rotulos" cap="Três erros inseridos de propósito numa foto do WGISD: uma duplicata, uma classe inexistente e uma caixa que sai da imagem." />
-          <Fig n="estatisticas_banco" cap="Estatísticas de 64 fotos e 924 caixas reais do WGISD. Os cachos ocupam em geral menos de 2% da foto e são mais altos que largos." />
-          <Fig n="quase_iguais" cap="Duas fotos de Chardonnay da mesma sessão contra uma de Syrah: a correlação do histograma de cor mostra o quanto fotos vizinhas são parecidas." />
-          <Fig n="split_por_grupo" cap="Fotos reais das cinco variedades do WGISD. Na divisão por grupo, cada variedade inteira vai para treino, validação ou teste." />
+          <Fig n="auditoria_rotulos" cap="Figura 21. Três inconsistências inseridas artificialmente em uma imagem do WGISD (duplicata, classe inexistente e caixa fora da imagem)." />
+          <Fig n="estatisticas_banco" cap="Figura 22. Estatísticas de 924 caixas em 64 imagens do WGISD. A maioria das caixas ocupa menos de 2% da área da imagem." />
+          <Fig n="quase_iguais" cap="Figura 23. Correlação entre histogramas de cor de imagens da mesma sessão e de sessões distintas." />
+          <Fig n="split_por_grupo" cap="Figura 24. Exemplo de partição por variedade no WGISD." />
           <LabSplit />
         </>
       ),
       pratica: (
         <>
-          <p>Em duplas, no notebook da aula (seções 4 a 6):</p>
+          <p>Em duplas, utilizando o notebook da aula (seções 4 a 6):</p>
           <ol>
-            <li>Anotar 15 fotos novas no CVAT seguindo o guia da turma, com revisão cruzada pela outra dupla.</li>
-            <li>Rodar o auditor de rótulos no export e corrigir o que ele apontar.</li>
-            <li>Gerar as estatísticas do banco e decidir um <code>imgsz</code> justificado.</li>
-            <li>Dividir por variedade (ou pelo grupo que a dupla escolher) e provar, com código, que nenhum grupo aparece em dois conjuntos.</li>
+            <li>Anotar 15 imagens no CVAT segundo o protocolo da turma, com revisão cruzada por outra dupla.</li>
+            <li>Executar a auditoria sobre o arquivo exportado e corrigir as inconsistências encontradas.</li>
+            <li>Calcular as estatísticas descritivas e justificar a resolução de entrada a ser usada na Aula 2.</li>
+            <li>Particionar o conjunto por grupo e verificar, por código, que nenhum grupo ocorre em mais de um conjunto.</li>
           </ol>
           <Code code={`import glob, os
 def auditar(pasta, n_classes):
@@ -466,19 +483,18 @@ def auditar(pasta, n_classes):
     problemas += [("sem imagem", r) for r in rots.keys() - imgs]
     for nome, f in rots.items():
         for k, linha in enumerate(open(f)):
-            c, *v = linha.split()
-            v = list(map(float, v))
+            c, *v = linha.split(); v = list(map(float, v))
             if not 0 <= int(c) < n_classes: problemas.append(("classe inválida", nome, k))
-            if any(x < 0 or x > 1 for x in v): problemas.append(("fora de [0,1]", nome, k))
-            if v[2] <= 0 or v[3] <= 0: problemas.append(("caixa vazia", nome, k))
+            if any(x < 0 or x > 1 for x in v): problemas.append(("fora de [0, 1]", nome, k))
+            if v[2] <= 0 or v[3] <= 0: problemas.append(("dimensão nula", nome, k))
     return problemas`} />
         </>
       ),
       exercicios: [
-        { nivel: 'básico', q: 'Por que não basta embaralhar as 300 fotos do WGISD e separar 70/15/15?', r: <p>Fotos da mesma variedade e sessão são quase iguais; o embaralhamento coloca irmãs gêmeas no treino e no teste. O teste mede memória, não generalização.</p> },
-        { nivel: 'médio', q: 'O banco tem 12 voos sobre 4 fazendas. Proponha uma divisão sem vazamento e diga o que cada conjunto mede.', r: <p>Por exemplo: voos de 3 fazendas no treino e na validação (separados por voo), e a 4ª fazenda inteira no teste. A validação mede generalização para outro voo; o teste mede generalização para outra propriedade, que é o uso real.</p> },
-        { nivel: 'médio', q: 'As estatísticas mostram caixas com mediana de 1% da área de fotos 2048 × 1365. Com imgsz 640, quantos pixels tem o lado de um cacho típico na entrada?', r: <p>1% da área ≈ lado de 10% de cada dimensão (se fosse quadrado): cerca de 205 × 137 px na foto. Reduzindo 3,2 vezes: cerca de 64 × 43 px. Dá para detectar; bagas, não.</p> },
-        { nivel: 'desafio', q: 'Um colega fez augmentation (espelhamento) em todas as fotos e depois dividiu aleatoriamente. Por que isso é ainda pior que vazamento por fotos vizinhas?', r: <p>A foto e sua versão espelhada são a mesma cena; se caem em lados diferentes, o teste contém literalmente imagens do treino. O augmentation tem que ser aplicado só no treino, depois da divisão, como o Ultralytics faz durante o treino.</p> },
+        { nivel: 'básico', q: 'Explicar por que a partição aleatória das 300 imagens do WGISD pode superestimar o desempenho.', r: <p>Imagens de uma mesma variedade e sessão são correlacionadas; a partição aleatória coloca imagens muito semelhantes em treino e teste, violando a independência e subestimando o erro de generalização (ROBERTS et al., 2017).</p> },
+        { nivel: 'médio', q: 'Um conjunto tem 12 voos sobre 4 propriedades. Propor uma partição e indicar o que cada conjunto estima.', r: <p>Por exemplo, três propriedades em treino e validação (separadas por voo) e a quarta propriedade integralmente no teste. A validação estima a generalização para novos voos; o teste, para uma nova propriedade.</p> },
+        { nivel: 'médio', q: 'A mediana da área relativa das caixas é 1% em imagens de 2048 × 1365. Estimar as dimensões de um cacho típico na entrada de 640 pixels.', r: <p>Supondo proporção semelhante à da imagem, o lado relativo é cerca de 10%: aproximadamente 205 × 137 pixels na imagem original e 64 × 43 pixels após a redução por um fator de 3,2.</p> },
+        { nivel: 'desafio', q: 'Explicar por que aplicar aumento de dados antes da partição constitui vazamento.', r: <p>Uma imagem e sua versão transformada representam a mesma cena; se forem alocadas em conjuntos distintos, o teste passa a conter informação do treino. O aumento de dados deve ser aplicado apenas ao conjunto de treino, após a partição (KAPOOR; NARAYANAN, 2023).</p> },
       ],
     },
     /* ============================================================ 1.6 */
@@ -489,66 +505,107 @@ def auditar(pasta, n_classes):
       min: 15,
       tipo: 'leitura',
       slides: [
-        { titulo: 'Três perguntas para qualquer artigo', pontos: ['Como os dados foram divididos? Por grupo?', 'Qual métrica e com que limiar de IoU?', 'O teste representa o uso real?'] },
-        { titulo: 'Leitura em formato de banca', pontos: ['Leal et al. (ENIAC 2024): gado contado por drone no Piauí', 'O aumento de dados veio antes ou depois da divisão?', 'Frames do mesmo vídeo ficaram em lados diferentes?', '"mAP" com qual limiar de IoU?', 'Revocação de 90% num rebanho de 500 cabeças: quantos ficam de fora?'] },
-        { titulo: 'Leitura extra da casa', pontos: ['Algeri et al. (2018), Revista de Computação Aplicada ao Agronegócio, UTFPR Medianeira', 'Densidade de aves em aviário com classificadores Haar e LBP', 'Compare com o que um YOLO faria hoje'] },
+        { titulo: 'Roteiro de leitura crítica', pontos: ['Como os dados foram particionados?', 'Qual métrica e com que limiar de IoU?', 'O conjunto de teste representa a condição de uso?', 'Há comparação com linha de base?', 'O código e os dados estão disponíveis?'] },
+        { titulo: 'Estudo para análise', pontos: ['Leal et al. (2024): detecção e contagem de bovinos em imagens de VANT', 'Leitura complementar: Algeri et al. (2018), densidade de aves com classificadores Haar e LBP'] },
       ],
       teoria: (
         <p>
-          Ler um artigo de visão computacional é procurar três coisas: <b>como os dados foram divididos</b>, <b>qual métrica foi reportada e com que limiar</b>, e <b>se o teste representa o uso real</b>.
-          Resultado alto com teste contaminado não vale nada no campo. Use a ficha de leitura crítica da seção de artigos para cada trabalho.
+          A análise crítica de um estudo de visão computacional deve verificar, no mínimo, o procedimento de partição dos dados, a definição precisa das métricas reportadas (incluindo o limiar de
+          IoU), a representatividade do conjunto de teste em relação à condição de uso, a existência de linha de base e a disponibilidade de código e dados. A ficha de leitura de cada referência na
+          seção de leituras recomendadas segue esse roteiro.
         </p>
       ),
       exemplo: (
         <Caso
-          tipo="artigo brasileiro"
+          tipo="artigo em evento nacional"
           titulo="Automatic Cattle Detection and Counting System in Aerial Images Using Computer Vision Algorithms"
-          autores="Leal et al."
-          onde="ENIAC 2024, SBC OpenLib"
-          link="https://sol.sbc.org.br/index.php/eniac/article/download/33817/33608"
-          resumo={<p>Frames de vídeos de drone sobre um pasto no Piauí viraram 120 imagens, rotuladas no Roboflow e ampliadas para 273 com aumento de dados. Um YOLOv9 pré-treinado no COCO foi ajustado no Colab e empacotado numa API de contagem.</p>}
-          pipeline={['Frames de vídeo de drone', 'Rótulos no Roboflow', 'Aumento: espelhamento, rotação, recorte, saturação', 'YOLOv9, 100 épocas, imgsz 640', 'API FastAPI + Docker']}
-          numeros={[{ v: '120', l: 'imagens originais' }, { v: '273', l: 'com aumento' }, { v: '88,5%', l: 'mAP' }, { v: '90%', l: 'revocação' }]}
+          autores="Leal, Jayson, Lira, Veloso, Oseas e Benjamin"
+          onde="ENIAC 2024, SBC, p. 472-483"
+          link="https://doi.org/10.5753/eniac.2024.245107"
+          resumo={<p>Os autores desenvolvem um sistema de contagem de bovinos a partir de imagens de VANT obtidas sobre pastagens no Piauí, sob diferentes condições ambientais, empregando um detector da família YOLO treinado com transferência de aprendizado e disponibilizado como serviço.</p>}
+          pipeline={['Quadros extraídos de vídeos de VANT', 'Anotação em ferramenta online', 'Aumento de dados', 'Detector YOLO pré-treinado no COCO', 'Serviço de inferência']}
+          numeros={[{ v: '120', l: 'imagens originais' }, { v: '273', l: 'após aumento de dados' }, { v: '88,5%', l: 'mAP reportado' }, { v: '90%', l: 'revocação reportada' }]}
           discutir={[
-            'O aumento foi feito antes ou depois de separar treino e teste?',
-            'Frames do mesmo vídeo foram separados em conjuntos diferentes?',
-            'Que diferença faz o mAP ser mAP50 ou mAP50-95?',
-            'Que informação a mais vocês pediriam para acreditar no número?',
+            'O aumento de dados foi aplicado antes ou depois da partição?',
+            'Quadros de um mesmo vídeo foram alocados em conjuntos distintos?',
+            'O mAP reportado corresponde a IoU 0,5 ou à média de 0,50 a 0,95?',
+            'Que informações adicionais seriam necessárias para reproduzir o resultado?',
           ]}
         />
       ),
-      pratica: <p>Cada dupla escreve duas perguntas de banca para o artigo e uma informação que faltou. Leitura de 2 duplas em voz alta. Para casa, a dupla escolhe um artigo da lista e preenche a ficha.</p>,
+      pratica: <p>Cada dupla formula duas questões metodológicas sobre o estudo e identifica uma informação ausente. Como atividade extraclasse, a dupla preenche a ficha de leitura de uma das referências recomendadas.</p>,
       exercicios: [
-        { nivel: 'médio', q: 'O artigo reporta revocação de 90%. Num rebanho de 500 cabeças, quantos animais ficam fora da contagem? E se a precisão for 96%, quantas caixas falsas?', r: <p>FN = 10% de 500 = 50 animais. Com 450 TP e precisão 0,96: TP + FP = 450 / 0,96 ≈ 469, então FP ≈ 19. A contagem final seria 469: erro de 31 cabeças (6%), mesmo com métricas que parecem altas.</p> },
+        { nivel: 'médio', q: 'Com revocação de 90% e precisão de 96% em um rebanho de 500 animais, estimar FN, FP e o erro de contagem.', r: <p>TP = 450 e FN = 50. TP + FP = 450 / 0,96 ≈ 469, logo FP ≈ 19. A contagem estimada seria 469, com erro de −31 animais (−6,2%).</p> },
       ],
     },
   ],
   artigos: [
-    { tag: 'banco usado na aula', br: true, ref: 'Santos, T. T.; de Souza, L. L.; dos Santos, A. A.; Avila, S. (2020). Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, 170, 105247.', link: 'https://doi.org/10.1016/j.compag.2020.105247', porque: 'Embrapa Informática Agropecuária. Origem do WGISD: 300 fotos de 5 variedades de uva, com caixas e máscaras. Compara Mask R-CNN e YOLO e rastreia cachos em vídeo.', perguntas: ['Como o banco foi dividido em treino e teste? Por foto ou por grupo?', 'Que regra de anotação foi usada para cachos ao fundo e ocluídos?', 'Que métricas foram usadas para detecção e para segmentação?'] },
-    { tag: 'TCC da UTFPR', br: true, ref: 'Salvadori (2020). Identificação de plantas de milho utilizando imagens aéreas obtidas por VANTs. TCC, Ciência da Computação, UTFPR Ponta Grossa.', link: 'https://repositorio.utfpr.edu.br/jspui/bitstream/1/26481/1/identificacaomilhoimagensaereas.pdf', porque: 'PDI clássico (HSV e componentes conexos) contra RetinaNet na mesma lavoura. Liga o bloco 1.1 a todo o resto.', perguntas: ['Quantas imagens foram anotadas e quanto tempo isso levou?', 'O teste veio de outra área do voo?', 'Por que a precisão do método clássico é tão baixa?'] },
-    { tag: 'revista da UTFPR Medianeira', br: true, ref: 'Algeri, Becker-Algeri, Abreu e Paula Filho (2018). Desenvolvimento de ferramenta não invasiva para cálculo de densidade de aves em aviários comerciais. Revista de Computação Aplicada ao Agronegócio, v. 1, n. 2.', link: 'https://periodicos.utfpr.edu.br/rcaa/article/download/9396/6139', porque: 'Detecção de aves com classificadores Haar e LBP em câmeras infravermelhas. Ótimo para comparar o detector clássico com um YOLO.', perguntas: ['Que descritores substituem as camadas convolucionais aqui?', 'Como o erro foi medido? Por contagem ou por caixa?'] },
-    { tag: 'leitura crítica', br: true, ref: 'Leal et al. (2024). Automatic Cattle Detection and Counting System in Aerial Images Using Computer Vision Algorithms. ENIAC, SBC.', link: 'https://sol.sbc.org.br/index.php/eniac/article/download/33817/33608', porque: 'Estudo brasileiro curto e completo, ótimo para treinar o olhar de banca.' },
-    { tag: 'detecção no agro', br: true, ref: 'Osco, L. P. et al. (2020). A convolutional neural network approach for counting and geolocating citrus-trees in UAV multispectral imagery. ISPRS Journal of Photogrammetry and Remote Sensing, 160, 97-106.', link: 'https://doi.org/10.1016/j.isprsjprs.2019.12.010', porque: 'Contagem e geolocalização de laranjeiras em pomar denso a partir de drone multiespectral (UNESP, UFMS). Mostra quando a contagem por densidade vence o detector de caixas.', perguntas: ['Por que caixas e NMS sofrem num pomar denso?', 'Que bandas espectrais entraram na rede?'] },
-    { tag: 'arquitetura', ref: 'Redmon, J. et al. (2016). You Only Look Once: Unified, Real-Time Object Detection. CVPR.', link: 'https://arxiv.org/abs/1506.02640', porque: 'O artigo original da grade e do estágio único.' },
-    { tag: 'arquitetura', ref: 'Girshick, R. et al. (2014). Rich feature hierarchies for accurate object detection and semantic segmentation. CVPR.', link: 'https://arxiv.org/abs/1311.2524', porque: 'O R-CNN e as regiões candidatas.' },
-    { tag: 'arquitetura', ref: 'Ronneberger, O.; Fischer, P.; Brox, T. (2015). U-Net: Convolutional Networks for Biomedical Image Segmentation. MICCAI.', link: 'https://arxiv.org/abs/1505.04597', porque: 'A arquitetura em U com conexões de atalho.' },
-    { tag: 'banco usado na aula', ref: 'Haug, S.; Ostermann, J. (2014). A Crop/Weed Field Image Dataset for the Evaluation of Computer Vision Based Precision Agriculture Tasks. ECCV Workshops.', link: 'https://github.com/cwfid/dataset', porque: 'O CWFID: fotos de campo de cenoura com máscara por pixel de cultura e daninha.' },
-    { tag: 'viés nos dados', ref: 'Noyan, M. A. (2022). Uncovering bias in the PlantVillage dataset. arXiv:2206.04374.', link: 'https://arxiv.org/abs/2206.04374', porque: 'Um modelo treinado só com 8 pixels do fundo das fotos acertou 49% das 38 classes de doença (o chute daria 2,6%). O melhor argumento para auditar dados.', perguntas: ['O que é viés de captura?', 'Como evitar isso no banco da dupla?'] },
+    { tag: 'conjunto de dados', br: true, ref: 'Santos et al. (2020). Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, 170, 105247.', link: 'https://doi.org/10.1016/j.compag.2020.105247', porque: 'Origem do WGISD (Embrapa Informática Agropecuária): imagens de cinco variedades de uva, com caixas e máscaras; compara detectores e propõe rastreamento em vídeo.', perguntas: ['Como o conjunto foi particionado em treino e teste?', 'Quais critérios de anotação foram adotados para cachos distantes e ocluídos?', 'Quais métricas foram usadas para detecção e segmentação?'] },
+    { tag: 'TCC, UTFPR', br: true, ref: 'Salvadori (2020). Identificação de plantas de milho utilizando imagens aéreas obtidas por VANTs. UTFPR Ponta Grossa.', link: 'https://repositorio.utfpr.edu.br/jspui/bitstream/1/26481/1/identificacaomilhoimagensaereas.pdf', porque: 'Comparação entre método clássico (HSV) e detector convolucional (RetinaNet) no mesmo conjunto.', perguntas: ['Qual foi o procedimento de partição?', 'Os conjuntos são espacialmente independentes?', 'Qual o esforço de anotação envolvido?'] },
+    { tag: 'periódico, UTFPR Medianeira', br: true, ref: 'Algeri et al. (2018). Desenvolvimento de ferramenta não invasiva para cálculo de densidade de aves em aviários comerciais. Revista de Computação Aplicada ao Agronegócio, v. 1, n. 2.', link: 'https://periodicos.utfpr.edu.br/rcaa/article/download/9396/6139', porque: 'Detecção de aves com classificadores Haar-like e LBP; permite comparar descritores definidos manualmente com detectores aprendidos.', perguntas: ['Como o erro foi medido?', 'Que condições de iluminação foram contempladas?'] },
+    { tag: 'evento nacional', br: true, ref: 'Leal et al. (2024). Automatic Cattle Detection and Counting System in Aerial Images Using Computer Vision Algorithms. ENIAC, SBC.', link: 'https://doi.org/10.5753/eniac.2024.245107', porque: 'Estudo aplicado de escopo reduzido, adequado para exercício de leitura crítica.' },
+    { tag: 'contagem por densidade', br: true, ref: 'Osco et al. (2020). A convolutional neural network approach for counting and geolocating citrus-trees in UAV multispectral imagery. ISPRS Journal of Photogrammetry and Remote Sensing, 160, 97-106.', link: 'https://doi.org/10.1016/j.isprsjprs.2019.12.010', porque: 'Alternativa à detecção por caixas em cenas com objetos contíguos.', perguntas: ['Por que a detecção por caixas e o NMS são limitados em pomares densos?', 'Quais bandas espectrais foram utilizadas?'] },
+    { tag: 'compromisso velocidade × acurácia', ref: 'Huang et al. (2017). Speed/accuracy trade-offs for modern convolutional object detectors. CVPR.', link: 'https://arxiv.org/abs/1611.10012', porque: 'Comparação controlada entre famílias de detectores, extratores e resoluções.' },
+    { tag: 'detecção com transformers', ref: 'Zhao et al. (2024). DETRs Beat YOLOs on Real-time Object Detection. CVPR.', link: 'https://arxiv.org/abs/2304.08069', porque: 'Detector sem NMS em tempo real; contraponto à adoção exclusiva da família YOLO.' },
+    { tag: 'métricas', br: true, ref: 'Padilla, Netto e da Silva (2020). A survey on performance metrics for object-detection algorithms. IWSSIP.', link: 'https://doi.org/10.1109/IWSSIP48289.2020.9145130', porque: 'Revisão das métricas de detecção e das variantes de interpolação do AP (UFRJ).' },
+    { tag: 'vazamento de dados', ref: 'Kapoor e Narayanan (2023). Leakage and the reproducibility crisis in machine-learning-based science. Patterns, 4(9), 100804.', link: 'https://doi.org/10.1016/j.patter.2023.100804', porque: 'Taxonomia de oito tipos de vazamento e proposta de fichas de modelo.' },
+    { tag: 'validação em blocos', ref: 'Roberts et al. (2017). Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure. Ecography, 40(8), 913-929.', link: 'https://doi.org/10.1111/ecog.02881', porque: 'Fundamentação da partição por grupo em dados com dependência.' },
+    { tag: 'viés em conjuntos de dados', ref: 'Noyan (2022). Uncovering bias in the PlantVillage dataset. arXiv:2206.04374.', link: 'https://arxiv.org/abs/2206.04374', porque: 'Um modelo treinado com 8 pixels de fundo alcançou 49% de acurácia em 38 classes (acaso: 2,6%), evidenciando viés de captura.' },
   ],
   quiz: [
-    { p: 'Você precisa medir a área de cada cacho de uva. Qual tarefa?', o: ['classificação', 'detecção', 'segmentação semântica', 'segmentação de instâncias'], a: 3, e: 'Área por objeto exige uma máscara para cada cacho: instâncias.' },
-    { p: 'Imagem 1000 × 500. Caixa xyxy (100, 100, 300, 200). Qual a linha YOLO?', o: ['0 0.1 0.2 0.3 0.4', '0 0.2 0.3 0.2 0.2', '0 200 150 200 100', '0 0.2 0.3 0.3 0.2'], a: 1, e: 'xc = 200/1000, yc = 150/500, w = 200/1000, h = 100/500.' },
-    { p: 'Duas caixas 100 × 100, deslocadas 50 px na horizontal. IoU?', o: ['0,50', '0,33', '0,25', '0,67'], a: 1, e: 'Interseção 5000, união 15000.' },
-    { p: 'Qual escala do neck atende melhor um objeto de 20 px numa entrada de 640?', o: ['P3 (stride 8)', 'P4 (stride 16)', 'P5 (stride 32)', 'tanto faz'], a: 0, e: 'Com stride 32, um objeto de 20 px cabe em menos de uma célula. P3 tem grade 80 × 80.' },
-    { p: 'O que acontece ao baixar muito o limiar de IoU do NMS?', o: ['aparecem duplicatas', 'cachos encostados são apagados', 'a confiança sobe', 'nada muda'], a: 1, e: 'Com limiar baixo, qualquer sobreposição apaga a caixa vizinha, mesmo sendo outro objeto.' },
-    { p: 'Drone a 40 m, pixel de 2,4 µm, focal de 8,8 mm. GSD?', o: ['0,11 cm/px', '1,1 cm/px', '11 cm/px', '4,4 cm/px'], a: 1, e: '40 × 2,4 / 8,8 ≈ 10,9 mm.' },
-    { p: 'Fotos em sequência de um voo foram divididas aleatoriamente entre treino e teste. O problema é:', o: ['desbalanceamento', 'vazamento', 'overfitting do NMS', 'GSD'], a: 1, e: 'Fotos vizinhas são quase iguais: o teste vira cola.' },
-    { p: 'Para que serve o conjunto de validação?', o: ['ajustar os pesos', 'escolher épocas, hiperparâmetros e limiares', 'reportar o número final', 'aumentar os dados'], a: 1, e: 'O teste fica guardado para o número final.' },
+    { p: 'A estimativa da área de cada cacho requer qual tarefa?', o: ['classificação', 'detecção', 'segmentação semântica', 'segmentação de instâncias'], a: 3, e: 'A área por objeto requer uma máscara para cada instância.' },
+    { p: 'Imagem 1000 × 500; caixa xyxy (100, 100, 300, 200). Qual a linha YOLO?', o: ['0 0.1 0.2 0.3 0.4', '0 0.2 0.3 0.2 0.2', '0 200 150 200 100', '0 0.2 0.3 0.3 0.2'], a: 1, e: 'x_c = 0,2; y_c = 0,3; w = 0,2; h = 0,2.' },
+    { p: 'Duas caixas de 100 × 100 deslocadas 50 pixels na horizontal têm IoU igual a:', o: ['0,50', '0,33', '0,25', '0,67'], a: 1, e: 'Interseção 5.000; união 15.000.' },
+    { p: 'Qual nível do pescoço é mais adequado a um objeto de 20 pixels em entrada de 640?', o: ['P3 (passo 8)', 'P4 (passo 16)', 'P5 (passo 32)', 'indiferente'], a: 0, e: 'Com passo 32, o objeto ocupa menos de uma célula.' },
+    { p: 'Reduzir excessivamente o limiar de IoU do NMS tende a:', o: ['manter duplicatas', 'remover objetos contíguos distintos', 'aumentar a confiança', 'não alterar o resultado'], a: 1, e: 'Sobreposições pequenas passam a provocar remoção.' },
+    { p: 'GSD para H = 40 m, p = 2,4 µm, f = 8,8 mm:', o: ['0,11 cm/pixel', '1,1 cm/pixel', '11 cm/pixel', '4,4 cm/pixel'], a: 1, e: '40 × 2,4 / 8,8 ≈ 10,9 mm.' },
+    { p: 'A partição aleatória de imagens de um mesmo voo entre treino e teste caracteriza:', o: ['desbalanceamento de classes', 'vazamento de dados', 'sobreajuste do NMS', 'erro de GSD'], a: 1, e: 'Observações dependentes em conjuntos distintos (ROBERTS et al., 2017).' },
+    { p: 'O conjunto de validação destina-se a:', o: ['ajustar os pesos', 'selecionar épocas, hiperparâmetros e limiares', 'reportar o desempenho final', 'aumentar os dados'], a: 1, e: 'O teste é reservado à estimativa final.' },
   ],
   entregas: [
-    <><b>Guia de anotação da dupla</b>, com pelo menos 5 casos-limite ilustrados com print e a medida de concordância entre os dois anotadores.</>,
-    <><b>Export do CVAT auditado</b>: saída do auditor zerada, data.yaml conferido e estatísticas do banco (objetos por foto, tamanho das caixas).</>,
-    <><b>Registro da divisão</b>: qual grupo foi usado e a célula que prova que nenhum grupo aparece em dois conjuntos.</>,
-    <><b>Ficha de leitura crítica</b> de um artigo da lista, com as três perguntas de banca respondidas.</>,
+    <><b>Protocolo de anotação</b> da dupla, com pelo menos cinco casos-limite ilustrados e a medida de concordância entre anotadores.</>,
+    <><b>Conjunto exportado e auditado</b>, acompanhado das estatísticas descritivas (objetos por imagem, tamanho relativo das caixas).</>,
+    <><b>Registro da partição</b>: critério de agrupamento adotado e verificação, por código, da ausência de grupos compartilhados entre conjuntos.</>,
+    <><b>Ficha de leitura crítica</b> de uma das referências recomendadas.</>,
+  ],
+  limitacoes: [
+    <>Os exemplos concentram-se em dois conjuntos (WGISD e CWFID), coletados em condições específicas. As conclusões ilustradas não devem ser generalizadas a outros cultivos, sensores ou regiões sem validação própria.</>,
+    <>As figuras de NMS, limiar de confiança e curva PR usam previsões simuladas a partir das caixas anotadas, e não saídas de um modelo treinado. Elas ilustram os algoritmos, não o desempenho de um detector.</>,
+    <>A prática utiliza a família YOLO na implementação Ultralytics por disponibilidade e facilidade de uso. Outras famílias (R-CNN, DETR, RT-DETR) são discutidas, mas não exercitadas; a escolha em um projeto real deve ser baseada em comparação no próprio conjunto.</>,
+    <>Valores padrão de parâmetros, nomes de pesos e formatos de exportação variam entre versões de software. As versões utilizadas devem ser registradas e conferidas na documentação correspondente.</>,
+    <>A partição do WGISD por variedade é um recurso didático para evidenciar mudança de domínio; ela difere da partição publicada pelos autores do conjunto, o que impede comparação direta com os resultados de Santos et al. (2020).</>,
+  ],
+  referencias: [
+    'ALGERI, T.; BECKER-ALGERI, T. A.; ABREU, P. G. de; PAULA FILHO, P. L. de. Desenvolvimento de ferramenta não invasiva para cálculo de densidade de aves em aviários comerciais. Revista de Computação Aplicada ao Agronegócio, Medianeira, v. 1, n. 2, p. 1-12, 2018.',
+    'BODLA, N.; SINGH, B.; CHELLAPPA, R.; DAVIS, L. S. Soft-NMS: improving object detection with one line of code. In: IEEE INTERNATIONAL CONFERENCE ON COMPUTER VISION (ICCV), 2017. Proceedings [...]. 2017. p. 5561-5569.',
+    'CARION, N.; MASSA, F.; SYNNAEVE, G.; USUNIER, N.; KIRILLOV, A.; ZAGORUYKO, S. End-to-end object detection with transformers. In: EUROPEAN CONFERENCE ON COMPUTER VISION (ECCV), 2020. Proceedings [...]. Cham: Springer, 2020. p. 213-229.',
+    'EVERINGHAM, M.; VAN GOOL, L.; WILLIAMS, C. K. I.; WINN, J.; ZISSERMAN, A. The Pascal Visual Object Classes (VOC) challenge. International Journal of Computer Vision, v. 88, p. 303-338, 2010.',
+    'GIRSHICK, R.; DONAHUE, J.; DARRELL, T.; MALIK, J. Rich feature hierarchies for accurate object detection and semantic segmentation. In: IEEE CONFERENCE ON COMPUTER VISION AND PATTERN RECOGNITION (CVPR), 2014. Proceedings [...]. 2014. p. 580-587.',
+    'GONZALEZ, R. C.; WOODS, R. E. Processamento digital de imagens. 3. ed. São Paulo: Pearson Prentice Hall, 2010.',
+    'HAUG, S.; OSTERMANN, J. A crop/weed field image dataset for the evaluation of computer vision based precision agriculture tasks. In: EUROPEAN CONFERENCE ON COMPUTER VISION WORKSHOPS, 2014. Proceedings [...]. Cham: Springer, 2015. p. 105-116.',
+    'HE, K.; GKIOXARI, G.; DOLLÁR, P.; GIRSHICK, R. Mask R-CNN. In: IEEE INTERNATIONAL CONFERENCE ON COMPUTER VISION (ICCV), 2017. Proceedings [...]. 2017. p. 2961-2969.',
+    'HUANG, J. et al. Speed/accuracy trade-offs for modern convolutional object detectors. In: IEEE CONFERENCE ON COMPUTER VISION AND PATTERN RECOGNITION (CVPR), 2017. Proceedings [...]. 2017. p. 7310-7311.',
+    'JOCHER, G.; QIU, J.; CHAURASIA, A. Ultralytics YOLO. Versão 8.0.0. 2023. Software. Disponível em: https://github.com/ultralytics/ultralytics.',
+    'KAPOOR, S.; NARAYANAN, A. Leakage and the reproducibility crisis in machine-learning-based science. Patterns, v. 4, n. 9, 100804, 2023. DOI: 10.1016/j.patter.2023.100804.',
+    'LEAL, I.; JAYSON, A.; LIRA, R.; VELOSO, R.; OSEAS, A.; BENJAMIN, M. Automatic cattle detection and counting system in aerial images using computer vision algorithms. In: ENCONTRO NACIONAL DE INTELIGÊNCIA ARTIFICIAL E COMPUTACIONAL (ENIAC), 21., 2024, Belém. Anais [...]. Porto Alegre: SBC, 2024. p. 472-483. DOI: 10.5753/eniac.2024.245107.',
+    'LECUN, Y.; BENGIO, Y.; HINTON, G. Deep learning. Nature, v. 521, p. 436-444, 2015.',
+    'LIN, T.-Y. et al. Microsoft COCO: common objects in context. In: EUROPEAN CONFERENCE ON COMPUTER VISION (ECCV), 2014. Proceedings [...]. Cham: Springer, 2014. p. 740-755.',
+    'LIN, T.-Y.; DOLLÁR, P.; GIRSHICK, R.; HE, K.; HARIHARAN, B.; BELONGIE, S. Feature pyramid networks for object detection. In: IEEE CONFERENCE ON COMPUTER VISION AND PATTERN RECOGNITION (CVPR), 2017. Proceedings [...]. 2017. p. 2117-2125.',
+    'NORTHCUTT, C. G.; ATHALYE, A.; MUELLER, J. Pervasive label errors in test sets destabilize machine learning benchmarks. In: NEURAL INFORMATION PROCESSING SYSTEMS TRACK ON DATASETS AND BENCHMARKS, 2021. Proceedings [...]. 2021.',
+    'NOYAN, M. A. Uncovering bias in the PlantVillage dataset. arXiv, 2206.04374, 2022.',
+    'OSCO, L. P. et al. A convolutional neural network approach for counting and geolocating citrus-trees in UAV multispectral imagery. ISPRS Journal of Photogrammetry and Remote Sensing, v. 160, p. 97-106, 2020. DOI: 10.1016/j.isprsjprs.2019.12.010.',
+    'OTSU, N. A threshold selection method from gray-level histograms. IEEE Transactions on Systems, Man, and Cybernetics, v. 9, n. 1, p. 62-66, 1979.',
+    'PADILLA, R.; NETTO, S. L.; DA SILVA, E. A. B. A survey on performance metrics for object-detection algorithms. In: INTERNATIONAL CONFERENCE ON SYSTEMS, SIGNALS AND IMAGE PROCESSING (IWSSIP), 2020. Proceedings [...]. 2020. p. 237-242. DOI: 10.1109/IWSSIP48289.2020.9145130.',
+    'PAPADOPOULOS, D. P.; UIJLINGS, J. R. R.; KELLER, F.; FERRARI, V. Extreme clicking for efficient object annotation. In: IEEE INTERNATIONAL CONFERENCE ON COMPUTER VISION (ICCV), 2017. Proceedings [...]. 2017. p. 4930-4939.',
+    'REDMON, J.; DIVVALA, S.; GIRSHICK, R.; FARHADI, A. You only look once: unified, real-time object detection. In: IEEE CONFERENCE ON COMPUTER VISION AND PATTERN RECOGNITION (CVPR), 2016. Proceedings [...]. 2016. p. 779-788.',
+    'REN, S.; HE, K.; GIRSHICK, R.; SUN, J. Faster R-CNN: towards real-time object detection with region proposal networks. IEEE Transactions on Pattern Analysis and Machine Intelligence, v. 39, n. 6, p. 1137-1149, 2017.',
+    'ROBERTS, D. R. et al. Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure. Ecography, v. 40, n. 8, p. 913-929, 2017. DOI: 10.1111/ecog.02881.',
+    'RONNEBERGER, O.; FISCHER, P.; BROX, T. U-Net: convolutional networks for biomedical image segmentation. In: MEDICAL IMAGE COMPUTING AND COMPUTER-ASSISTED INTERVENTION (MICCAI), 2015. Proceedings [...]. Cham: Springer, 2015. p. 234-241.',
+    'SALVADORI, E. Identificação de plantas de milho utilizando imagens aéreas obtidas por VANTs. 2020. Trabalho de Conclusão de Curso (Bacharelado em Ciência da Computação), Universidade Tecnológica Federal do Paraná, Ponta Grossa, 2020.',
+    'SANTOS, T. T.; DE SOUZA, L. L.; DOS SANTOS, A. A.; AVILA, S. Grape detection, segmentation, and tracking using deep neural networks and three-dimensional association. Computers and Electronics in Agriculture, v. 170, 105247, 2020. DOI: 10.1016/j.compag.2020.105247.',
+    'TIAN, Z.; SHEN, C.; CHEN, H.; HE, T. FCOS: fully convolutional one-stage object detection. In: IEEE/CVF INTERNATIONAL CONFERENCE ON COMPUTER VISION (ICCV), 2019. Proceedings [...]. 2019. p. 9627-9636.',
+    'UIJLINGS, J. R. R.; VAN DE SANDE, K. E. A.; GEVERS, T.; SMEULDERS, A. W. M. Selective search for object recognition. International Journal of Computer Vision, v. 104, p. 154-171, 2013.',
+    'WOEBBECKE, D. M.; MEYER, G. E.; VON BARGEN, K.; MORTENSEN, D. A. Color indices for weed identification under various soil, residue, and lighting conditions. Transactions of the ASAE, v. 38, n. 1, p. 259-269, 1995.',
+    'ZHAO, Y. et al. DETRs beat YOLOs on real-time object detection. In: IEEE/CVF CONFERENCE ON COMPUTER VISION AND PATTERN RECOGNITION (CVPR), 2024. Proceedings [...]. 2024. p. 16965-16974.',
   ],
 }

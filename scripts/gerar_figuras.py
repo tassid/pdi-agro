@@ -144,7 +144,7 @@ def fig_pipeline_classico():
         if area > 400:
             ax[3].add_patch(patches.Rectangle((x, y), w, h, fill=False, ec=AMARELO, lw=1.5))
     limpar(ax)
-    fig.suptitle("Pipeline clássico de PDI numa lavoura de cenoura real (CWFID): cada etapa é uma regra escrita à mão", fontsize=13, y=0.98)
+    fig.suptitle("Cadeia clássica de processamento aplicada a uma imagem do CWFID: cada etapa é definida explicitamente", fontsize=13, y=0.98)
     salvar(fig, "pipeline_classico")
 
 
@@ -154,7 +154,7 @@ def fig_classico_falha():
     _, m = exg_mascara(img)
     fig, ax = plt.subplots(1, 2, figsize=(13, 4.8))
     ax[0].imshow(img); ax[0].set_title("Vinhedo (WGISD, Cabernet Sauvignon)")
-    ax[1].imshow(m, cmap="gray"); ax[1].set_title("Mesma regra ExG + Otsu: separa folha, não acha o cacho")
+    ax[1].imshow(m, cmap="gray"); ax[1].set_title("ExG + Otsu: segmenta a folhagem, não os cachos")
     limpar(ax)
     salvar(fig, "classico_falha")
 
@@ -201,7 +201,7 @@ def fig_formatos():
     yol = f"YOLO (0 a 1):   0 {c[0]:.4f} {c[1]:.4f} {c[2]:.4f} {c[3]:.4f}"
     ax.text(0.01, -0.04, f"imagem {w} × {h} px\n{xyxy}\n{coco}\n{yol}", transform=ax.transAxes, va="top",
             family="monospace", fontsize=12, bbox=dict(fc="white", ec=AZUL, lw=2))
-    ax.set_title("Um cacho real do WGISD (Cabernet Franc) em três formatos de caixa")
+    ax.set_title("Cacho anotado do WGISD (Cabernet Franc) em três representações")
     limpar(ax)
     salvar(fig, "formatos_caixa")
 
@@ -243,7 +243,7 @@ def fig_rcnn_vs_yolo():
         ax[1].axvline(i * w / S, color="white", lw=0.8, alpha=0.6); ax[1].axhline(i * h / S, color="white", lw=0.8, alpha=0.6)
     for c in cx:
         caixa(ax[1], yolo_para_xyxy(c, w, h), lw=2)
-    ax[1].set_title("YOLO, estágio único: uma passada pela rede\nprevê caixa e classe em todas as células de uma vez")
+    ax[1].set_title("Um estágio: previsão densa de caixa e classe\nem todas as células, em uma única passagem")
     limpar(ax)
     salvar(fig, "rcnn_vs_yolo")
 
@@ -251,12 +251,12 @@ def fig_rcnn_vs_yolo():
 def fig_unet_cwfid():
     img, anot = cenoura("002")
     fig, ax = plt.subplots(1, 3, figsize=(15, 5.6))
-    ax[0].imshow(img); ax[0].set_title("Entrada: foto de campo")
+    ax[0].imshow(img); ax[0].set_title("Entrada: imagem de campo")
     cor = np.zeros_like(img); cor[anot[..., 1] > 0] = (34, 139, 34); cor[anot[..., 0] > 0] = (178, 34, 34)
     ax[1].imshow(cor); ax[1].set_title("Saída esperada: rótulo por pixel\nverde = cenoura · vermelho = daninha")
     ov = img.copy(); msk = cor.sum(2) > 0
     ov[msk] = (0.4 * ov[msk] + 0.6 * cor[msk]).astype(np.uint8)
-    ax[2].imshow(ov); ax[2].set_title("Sobreposição: é isso que a U-Net aprende")
+    ax[2].imshow(ov); ax[2].set_title("Sobreposição do rótulo à imagem")
     limpar(ax)
     salvar(fig, "unet_cwfid")
 
@@ -348,7 +348,7 @@ def fig_gsd():
         a.imshow(pequeno, interpolation="nearest")
         a.set_title(f"resolução ÷{f}: cacho com ~{(b[2] - b[0]) // f} px")
     limpar(ax)
-    fig.suptitle("Subir o drone (ou reduzir o imgsz) é isto: o mesmo cacho com cada vez menos pixels", y=1.02)
+    fig.suptitle("Redução de resolução: o mesmo cacho representado por número decrescente de pixels", y=1.02)
     salvar(fig, "gsd_resolucao")
 
 
@@ -367,9 +367,9 @@ def fig_ambiguidade():
     ordem = np.argsort(bs[:, 0]); grupos = np.array_split(ordem, max(1, len(cx) // 3))
     for gidx in grupos:
         g = bs[gidx]; caixa(ax[2], [g[:, 0].min(), g[:, 1].min(), g[:, 2].max(), g[:, 3].max()], cor="#ff5252", lw=2.5)
-    ax[0].set_title("Anotador A: caixa justa, um cacho por caixa")
-    ax[1].set_title("Anotador B: caixa folgada, inclui folha")
-    ax[2].set_title("Anotador C: junta cachos encostados")
+    ax[0].set_title("Critério A: caixa ajustada, um cacho por caixa")
+    ax[1].set_title("Critério B: caixa com margem, inclui folhagem")
+    ax[2].set_title("Critério C: cachos contíguos agrupados")
     limpar(ax)
     salvar(fig, "ambiguidade_anotacao")
 
@@ -386,7 +386,7 @@ def fig_auditoria():
     caixa(ax, [w * 0.05, h * 0.05, w * 0.22, h * 0.25], cor="#ff5252", lw=3, txt="classe 3 (não existe)", ls="--")
     caixa(ax, [w * 0.86, h * 0.7, w * 1.08, h * 0.98], cor="#ff5252", lw=3, txt="x > 1 (fora da foto)", ls="--")
     ax.set_xlim(0, w); ax.set_ylim(h, 0)
-    ax.set_title("Auditoria de rótulos: três erros que o validador do Lab 1 precisa apontar (em vermelho)")
+    ax.set_title("Auditoria de rótulos: três inconsistências inseridas artificialmente (em vermelho)")
     limpar(ax)
     salvar(fig, "auditoria_rotulos")
 
@@ -403,7 +403,7 @@ def fig_split_grupos():
                 cor = {"TREINO": AZUL, "VALIDAÇÃO": "#b8860b", "TESTE": VERMELHO}[papel]
                 ax[i, j].set_title(f"{nome}\n{papel}", color=cor)
     limpar(ax)
-    fig.suptitle("Divisão por grupo no WGISD: cada variedade (e cada vinhedo/dia de coleta) inteira num só conjunto", y=1.0)
+    fig.suptitle("Partição por grupo no WGISD: cada variedade é alocada integralmente a um único conjunto", y=1.0)
     salvar(fig, "split_por_grupo")
 
 
@@ -441,7 +441,7 @@ def fig_ativacoes():
     ax.plot(z, np.maximum(0, z), color=AZUL, lw=3, label="ReLU")
     ax.plot(z, z / (1 + np.exp(-z)), color="#b8860b", lw=3, ls="--", label="SiLU (usada no YOLO)")
     ax.set_ylim(-1, 4); ax.grid(alpha=0.3); ax.legend(); ax.set_xlabel("z = w·x + b"); ax.set_ylabel("ativação")
-    ax.set_title("Funções de ativação: a não linearidade é o que resolve o XOR")
+    ax.set_title("Funções de ativação")
     salvar(fig, "ativacoes")
 
 
@@ -456,14 +456,14 @@ def fig_filtros_conv():
         "Média 9×9 (suaviza)": np.ones((9, 9), np.float32) / 81,
     }
     fig, ax = plt.subplots(1, 5, figsize=(20, 4.6))
-    ax[0].imshow(g, cmap="gray"); ax[0].set_title("Entrada (canal cinza)")
+    ax[0].imshow(g, cmap="gray"); ax[0].set_title("Entrada (tons de cinza)")
     for a, (nome, k) in zip(ax[1:], ks.items()):
         r = cv2.filter2D(g, -1, k)
         v = np.abs(r) if "Média" not in nome else r
         a.imshow(v, cmap="magma" if "Média" not in nome else "gray", vmax=np.percentile(v, 99))
         a.set_title(nome)
     limpar(ax)
-    fig.suptitle("Na Aula 2 de PDI você escolhia o kernel. Na CNN, os números do kernel são pesos aprendidos.", y=1.02)
+    fig.suptitle("Núcleos clássicos de convolução; em uma rede convolucional, os valores do núcleo são parâmetros aprendidos", y=1.02)
     salvar(fig, "filtros_conv")
 
 
@@ -522,7 +522,7 @@ def fig_sahi():
             ax[1].add_patch(patches.Rectangle((x, y), t, t, fill=False, ec=AMARELO, lw=1.5, alpha=0.9))
     for c in cx:
         caixa(ax[1], yolo_para_xyxy(c, w, h), cor="#00e676", lw=1.5)
-    ax[1].set_title("SAHI: fatias de 640 px com 20% de sobreposição,\ninferência em cada fatia e NMS para juntar")
+    ax[1].set_title("Fatias de 640 px com 20% de sobreposição;\ninferência por fatia e combinação por NMS")
     limpar(ax)
     salvar(fig, "sahi_fatias")
 
@@ -539,13 +539,13 @@ def fig_curvas():
     ax[0].plot(ep, va, color=VERMELHO, lw=2.5, label="perda de validação")
     ax[0].axvspan(1, 15, color="#fff8cc", alpha=0.9); ax[0].text(3, 2.9, "underfitting", fontsize=11)
     ax[0].axvspan(45, 100, color="#fdecea", alpha=0.9); ax[0].text(60, 2.9, "overfitting", fontsize=11)
-    ax[0].set(xlabel="época", ylabel="perda", title="Perdas: quando a validação descola, a rede decorou"); ax[0].legend(); ax[0].grid(alpha=0.3)
+    ax[0].set(xlabel="época", ylabel="perda", title="Perdas de treino e de validação"); ax[0].legend(); ax[0].grid(alpha=0.3)
     ax[1].plot(ep, 100 * m50, color=VERDE, lw=2.5, label="mAP50 na validação")
     ax[1].axvline(melhor + 1, color=AZUL, ls="--"); ax[1].text(melhor + 2, 20, f"best.pt\n(época {melhor + 1})", color=AZUL)
-    ax[1].axvline(parada + 1, color=VERMELHO, ls=":"); ax[1].text(parada + 2, 45, f"para aqui\n(patience=15)", color=VERMELHO)
+    ax[1].axvline(parada + 1, color=VERMELHO, ls=":"); ax[1].text(parada + 2, 45, f"interrupção\n(patience=15)", color=VERMELHO)
     ax[1].set(xlabel="época", ylabel="mAP50 (%)", title="Parada antecipada: guarda o melhor e para depois de 15 épocas sem melhora")
     ax[1].grid(alpha=0.3)
-    fig.text(0.5, -0.03, "Curvas ilustrativas, no formato do results.csv do Ultralytics", ha="center", fontsize=10, color="gray")
+    fig.text(0.5, -0.03, "Curvas ilustrativas (valores não provenientes de treinamento real), no formato do results.csv", ha="center", fontsize=10, color="gray")
     salvar(fig, "curvas_treino")
 
 
@@ -587,7 +587,7 @@ def fig_pr_real():
             ax[1].text(confs[kbest] + 0.01, 0.1, f"melhor F1\nconf = {confs[kbest]:.2f}", color="gray")
     ax[0].set(xlabel="revocação", ylabel="precisão", title=f"Curva PR em {npos} cachos reais do WGISD", xlim=(0, 1.02), ylim=(0, 1.02)); ax[0].legend(); ax[0].grid(alpha=0.3)
     ax[1].set(xlabel="limiar de confiança", title="O limiar de confiança troca precisão por revocação", xlim=(1, 0)); ax[1].legend(); ax[1].grid(alpha=0.3)
-    fig.text(0.5, -0.03, "Caixas reais do WGISD; detecções simuladas com ruído e falsos positivos. O cálculo de AP é o mesmo do COCO.", ha="center", fontsize=10, color="gray")
+    fig.text(0.5, -0.03, "Anotações do WGISD; previsões simuladas com ruído e falsos positivos. AP calculado com precisão interpolada.", ha="center", fontsize=10, color="gray")
     salvar(fig, "pr_curva_real")
 
 
@@ -601,7 +601,7 @@ def fig_confusao():
             ax.text(j, i, M[i, j], ha="center", va="center", fontsize=16, color="white" if M[i, j] > 100 else "black")
     ax.set_xticks(range(3), classes); ax.set_yticks(range(3), classes)
     ax.set_xlabel("previsto"); ax.set_ylabel("real")
-    ax.set_title("Matriz de confusão de um detector (ilustrativa)\na linha \"fundo\" são os falsos positivos")
+    ax.set_title("Matriz de confusão de um detector (valores ilustrativos)")
     salvar(fig, "matriz_confusao")
 
 
@@ -619,7 +619,7 @@ def fig_grid_random():
         for xi in x: a.plot([xi, xi], [-0.25, -0.05], color=AZUL, alpha=0.4)
         a.set_xlim(0, 1); a.set_ylim(-0.27, 1); a.set_title(t)
         a.set_xlabel("taxa de aprendizado (importa muito)"); a.set_ylabel("momentum (importa pouco)")
-    fig.text(0.5, -0.03, "Bergstra e Bengio (2012): quando só um hiperparâmetro importa, a busca aleatória explora mais valores dele.", ha="center", fontsize=10, color="gray")
+    fig.text(0.5, -0.03, "Argumento de Bergstra e Bengio (2012): com mesmo orçamento, a busca aleatória avalia mais valores do hiperparâmetro relevante.", ha="center", fontsize=10, color="gray")
     salvar(fig, "grid_vs_random")
 
 
@@ -633,7 +633,7 @@ def fig_dominio_variedades():
         brilho = img.mean()
         a.set_title(f"{nome}\nbrilho médio {brilho:.0f} · {len(cx)} cachos")
     limpar(ax)
-    fig.suptitle("Mesmo dataset, cinco domínios: cor do cacho, folhagem, luz e câmera mudam entre variedades", y=1.04)
+    fig.suptitle("Cinco variedades do WGISD: diferenças de cor dos cachos, dossel e iluminação", y=1.04)
     salvar(fig, "dominio_variedades")
 
 
@@ -652,7 +652,7 @@ def fig_rastreamento():
                 caixa(a, b, lw=2, txt=f"id {ids[i]}")
         a.set_title(f"quadro {k * 15}: câmera andou {x0} px")
     limpar(ax)
-    fig.suptitle(f"Rastreamento: o mesmo cacho mantém o id entre quadros, então a contagem é {len(cx)} e não a soma das caixas", y=1.04)
+    fig.suptitle(f"Rastreamento simulado: identificadores persistentes entre quadros ({len(cx)} cachos anotados)", y=1.04)
     salvar(fig, "rastreamento_ids")
 
 
@@ -671,8 +671,8 @@ def fig_imagem_matriz():
     zona = img[cy - 60:cy + 60, cxp - 60:cxp + 60]
     peq = img[cy - 4:cy + 4, cxp - 4:cxp + 4]
     fig, ax = plt.subplots(1, 3, figsize=(18, 6), gridspec_kw={"width_ratios": [1.3, 1, 1.25]})
-    ax[0].imshow(img); ax[0].add_patch(patches.Rectangle((cxp - 60, cy - 60), 120, 120, fill=False, ec=AMARELO, lw=3)); ax[0].set_title("Foto 2048 × 1365 px")
-    ax[1].imshow(zona, interpolation="nearest"); ax[1].add_patch(patches.Rectangle((56, 56), 8, 8, fill=False, ec=AMARELO, lw=3)); ax[1].set_title("Zoom de 120 × 120 px")
+    ax[0].imshow(img); ax[0].add_patch(patches.Rectangle((cxp - 60, cy - 60), 120, 120, fill=False, ec=AMARELO, lw=3)); ax[0].set_title("Imagem 2048 × 1365 px")
+    ax[1].imshow(zona, interpolation="nearest"); ax[1].add_patch(patches.Rectangle((56, 56), 8, 8, fill=False, ec=AMARELO, lw=3)); ax[1].set_title("Recorte de 120 × 120 px")
     ax[2].imshow(peq, interpolation="nearest")
     for i in range(8):
         for j in range(8):
@@ -693,7 +693,7 @@ def fig_canais_cor():
     for a, (k, n) in zip(ax[1], enumerate(["H (matiz)", "S (saturação)", "V (brilho)"])):
         a.imshow(hsv[..., k], cmap="twilight" if k == 0 else "gray"); a.set_title(n)
     limpar(ax)
-    fig.suptitle("Syrah (WGISD): o cacho escuro se destaca no V e no H, não no G. A rede recebe os três canais RGB e aprende sozinha qual combinação usar.", y=1.0)
+    fig.suptitle("Canais RGB e HSV de uma imagem de Syrah do WGISD", y=1.0)
     salvar(fig, "canais_cor")
 
 
@@ -711,7 +711,7 @@ def fig_piramide_p3p5():
             caixa(a, b, cor=AMARELO if alvo == st else "#888888", lw=2 if alvo == st else 1)
         a.set_title(nome)
     limpar(ax)
-    fig.suptitle("O neck entrega três resoluções; cada cacho é previsto melhor na escala do seu tamanho (amarelo)", y=1.03)
+    fig.suptitle("Níveis do pescoço; em amarelo, cachos cujo tamanho corresponde ao nível", y=1.03)
     salvar(fig, "piramide_p3p5")
 
 
@@ -726,13 +726,13 @@ def fig_ancora_vs_livre():
     for (aw, ah), cor in zip([(120, 120), (90, 220), (220, 90)], ["#ff8a80", "#40c4ff", "#b388ff"]):
         caixa(ax[0], [px - aw / 2, py - ah / 2, px + aw / 2, py + ah / 2], cor=cor, lw=2, ls="--")
     caixa(ax[0], bb, cor="#00e676", lw=3)
-    ax[0].set_title("Com âncoras (YOLOv2 a v5): caixas-modelo fixas,\na rede prevê o ajuste da âncora mais parecida")
+    ax[0].set_title("Com âncoras: ajuste de caixas de referência\npré-definidas")
     caixa(ax[1], bb, cor="#00e676", lw=3)
     ax[1].plot(px, py, "o", color=AMARELO, ms=12, mec="black")
     for (dx, dy, t) in [(bb[0] - px, 0, "l"), (bb[2] - px, 0, "r"), (0, bb[1] - py, "t"), (0, bb[3] - py, "b")]:
         ax[1].annotate("", xy=(px + dx, py + dy), xytext=(px, py), arrowprops=dict(arrowstyle="->", color=AMARELO, lw=2.5))
         ax[1].text(px + dx * 0.55, py + dy * 0.55 - 8, t, color="black", fontsize=13, fontweight="bold", bbox=dict(fc=AMARELO, ec="none", pad=1))
-    ax[1].set_title("Sem âncoras (YOLOv8, 11, 26): cada ponto prevê\nas distâncias até as quatro bordas (l, t, r, b)")
+    ax[1].set_title("Sem âncoras: regressão das distâncias\naté as quatro bordas (l, t, r, b)")
     limpar(ax)
     salvar(fig, "ancora_vs_livre")
 
@@ -746,7 +746,7 @@ def fig_mascara_poligono():
     x, y, bw, bh = cv2.boundingRect(c); pad = 60
     x0, y0 = max(0, x - pad), max(0, y - pad); crop = img[y0:y + bh + pad, x0:x + bw + pad]
     fig, ax = plt.subplots(1, 3, figsize=(17, 6))
-    ax[0].imshow(crop); caixa(ax[0], [x - x0, y - y0, x + bw - x0, y + bh - y0], lw=3); ax[0].set_title("Detecção: 4 números")
+    ax[0].imshow(crop); caixa(ax[0], [x - x0, y - y0, x + bw - x0, y + bh - y0], lw=3); ax[0].set_title("Caixa: 4 valores")
     ov = crop.copy(); mm = mk[y0:y + bh + pad, x0:x + bw + pad] > 0
     ov[mm] = (0.4 * ov[mm] + 0.6 * np.array([255, 224, 0])).astype(np.uint8)
     ax[1].imshow(ov); ax[1].set_title("Máscara: 1 bit por pixel")
@@ -795,9 +795,9 @@ def fig_nms_passos():
         for d in mant: caixa(a, d, cor="#00e676", lw=3, txt=f"{d[4]:.2f}")
         for d in apagadas: caixa(a, d, cor="#ff5252", lw=1.5, ls=":")
         for d in rest: caixa(a, d, cor=AMARELO, lw=1)
-        a.set_title(f"{passo + 2}. mantém {topo[4]:.2f}, apaga {len(apagadas)} (IoU ≥ 0,5)")
+        a.set_title(f"{passo + 2}. mantém {topo[4]:.2f}, remove {len(apagadas)} (IoU ≥ 0,5)")
     limpar(ax)
-    fig.suptitle("NMS passo a passo: verde = mantida, vermelho = apagada, amarelo = ainda na fila", y=1.02)
+    fig.suptitle("NMS passo a passo: verde = mantida, vermelho = removida, amarelo = pendente (previsões simuladas)", y=1.02)
     salvar(fig, "nms_passos")
 
 
@@ -810,7 +810,7 @@ def fig_conf_limiares():
         for x in k: caixa(a, x, cor="#00e676" if x[5] else "#ff5252", lw=2)
         tp = int(k[:, 5].sum()); a.set_title(f"conf ≥ {c}: {tp} acertos, {len(k) - tp} falsos\n({len(cx)} cachos reais)")
     limpar(ax)
-    fig.suptitle("Subir o conf limpa os falsos positivos (vermelho), mas começa a perder cachos", y=1.03)
+    fig.suptitle("Efeito do limiar de confiança sobre previsões simuladas", y=1.03)
     salvar(fig, "conf_limiares")
 
 
@@ -832,7 +832,7 @@ def fig_casos_limite():
         for b in cxs: caixa(a, b - np.array([x0, y0, x0, y0]), lw=2.5)
         a.set_title(t)
     limpar(ax)
-    fig.suptitle("Casos-limite reais do WGISD e como o banco os anotou: o guia da turma precisa decidir cada um", y=1.03)
+    fig.suptitle("Casos-limite do WGISD com as anotações originais do conjunto", y=1.03)
     salvar(fig, "casos_limite")
 
 
@@ -850,7 +850,7 @@ def fig_estatisticas_banco():
     hm, _, _ = np.histogram2d(num[:, 1], num[:, 0], bins=12, range=[[0, 1], [0, 1]])
     ax[2].imshow(hm, cmap="magma", extent=[0, 1, 1, 0]); ax[2].set(title="Onde ficam os centros", xlabel="x", ylabel="y")
     ax[3].hist(num[:, 3], bins=30, color="#b8860b"); ax[3].set(title="Largura / altura da caixa", xlabel="razão (cachos são altos: < 1)")
-    fig.suptitle(f"Estatísticas de {len(AMOSTRA)} fotos e {len(linhas)} caixas reais do WGISD: olhe isto antes de escolher imgsz e augmentation", y=1.03)
+    fig.suptitle(f"Estatísticas de {len(AMOSTRA)} fotos e {len(linhas)} caixas reais do WGISD: estatística descritiva", y=1.03)
     salvar(fig, "estatisticas_banco")
 
 
@@ -858,16 +858,16 @@ def fig_quase_iguais():
     a, _ = uva("CDY_20180427_153201477_BURST000_COVER_TOP"); b, _ = uva("CDY_20180427_153409150_BURST000_COVER_TOP")
     p, q = uva("CDY_2024")[0], uva("CDY_2026")[0]
     fig, ax = plt.subplots(1, 4, figsize=(20, 4.4))
-    ax[0].imshow(p); ax[0].set_title("CDY_2024"); ax[1].imshow(q); ax[1].set_title("CDY_2026 (duas fotos depois)")
+    ax[0].imshow(p); ax[0].set_title("CDY_2024"); ax[1].imshow(q); ax[1].set_title("CDY_2026 (mesma sessão)")
     hp = cv2.calcHist([cv2.cvtColor(p, cv2.COLOR_RGB2HSV)], [0, 1], None, [30, 32], [0, 180, 0, 256])
     hq = cv2.calcHist([cv2.cvtColor(q, cv2.COLOR_RGB2HSV)], [0, 1], None, [30, 32], [0, 180, 0, 256])
     hr = cv2.calcHist([cv2.cvtColor(uva("SYH_2017-04-27_1265")[0], cv2.COLOR_RGB2HSV)], [0, 1], None, [30, 32], [0, 180, 0, 256])
     s1 = cv2.compareHist(hp, hq, cv2.HISTCMP_CORREL); s2 = cv2.compareHist(hp, hr, cv2.HISTCMP_CORREL)
-    ax[2].imshow(uva("SYH_2017-04-27_1265")[0]); ax[2].set_title("Syrah, outro dia e vinhedo")
+    ax[2].imshow(uva("SYH_2017-04-27_1265")[0]); ax[2].set_title("Syrah (outra sessão)")
     ax[3].bar(["vizinhas", "Syrah"], [s1, s2], color=[VERMELHO, AZUL]); ax[3].set(ylim=(0, 1), title="Correlação do histograma de cor")
     for k, v in enumerate([s1, s2]): ax[3].text(k, v + 0.02, f"{v:.2f}", ha="center", fontsize=13)
     limpar(ax[:3])
-    fig.suptitle("Fotos vizinhas da mesma sessão são quase gêmeas: separá-las entre treino e teste é cola", y=1.03)
+    fig.suptitle("Similaridade de cor entre imagens da mesma sessão e de sessões distintas", y=1.03)
     salvar(fig, "quase_iguais")
 
 
@@ -916,11 +916,11 @@ def fig_conv_passo():
     ax[0].imshow(patch, cmap="gray", vmin=0, vmax=255)
     for i in range(6):
         for j in range(6): ax[0].text(j, i, patch[i, j], ha="center", va="center", color="red" if i < 3 and j < 3 else ("white" if patch[i, j] < 128 else "black"), fontsize=13, fontweight="bold" if i < 3 and j < 3 else None)
-    ax[0].add_patch(patches.Rectangle((-0.5, -0.5), 3, 3, fill=False, ec=VERMELHO, lw=3)); ax[0].set_title("Entrada 6 × 6 (cinza de um cacho real)")
+    ax[0].add_patch(patches.Rectangle((-0.5, -0.5), 3, 3, fill=False, ec=VERMELHO, lw=3)); ax[0].set_title("Entrada 6 × 6 (tons de cinza, WGISD)")
     ax[1].imshow(k, cmap="coolwarm", vmin=-2, vmax=2)
     for i in range(3):
         for j in range(3): ax[1].text(j, i, k[i, j], ha="center", va="center", fontsize=16, fontweight="bold")
-    ax[1].set_title("Kernel 3 × 3 (Sobel x)\nna CNN: 9 pesos aprendidos")
+    ax[1].set_title("Núcleo 3 × 3 (Sobel horizontal)")
     ax[2].imshow(out, cmap="coolwarm")
     for i in range(4):
         for j in range(4): ax[2].text(j, i, out[i, j], ha="center", va="center", fontsize=13, fontweight="bold" if (i, j) == (0, 0) else None)
@@ -947,7 +947,7 @@ def fig_mapas_caracteristicas():
     for a, m in zip(ax[1, 1:5], c2): a.imshow(m, cmap="viridis", vmax=np.percentile(m, 99)); a.set_title(f"camada 2 · {m.shape[1]} × {m.shape[0]}")
     ax[1, 5].axis("off"); ax[1, 5].text(0, 0.5, "conv → ReLU → max pool\nrepetido muitas vezes:\nmapas menores, mais\nabstratos e em maior\nnúmero de canais", fontsize=12, va="center")
     limpar(ax)
-    fig.suptitle("Mapas de características com filtros fixos (Gabor e Laplaciano), para ver a ideia. Numa CNN treinada, os filtros são aprendidos.", y=1.02)
+    fig.suptitle("Mapas de características com filtros fixos (Gabor e Laplaciano), para fins ilustrativos", y=1.02)
     salvar(fig, "mapas_caracteristicas")
 
 
@@ -958,8 +958,8 @@ def fig_letterbox():
     est = cv2.resize(img, (640, 640))
     fig, ax = plt.subplots(1, 3, figsize=(18, 5.6), gridspec_kw={"width_ratios": [1.5, 1, 1]})
     ax[0].imshow(img); ax[0].set_title(f"original {w} × {h}")
-    ax[1].imshow(est); ax[1].set_title("esticar para 640 × 640: cacho deformado")
-    ax[2].imshow(lb); ax[2].set_title("letterbox: reduz mantendo a proporção\ne completa com cinza (114)")
+    ax[1].imshow(est); ax[1].set_title("redimensionamento sem preservar proporção")
+    ax[2].imshow(lb); ax[2].set_title("redimensionamento com preservação\nda proporção e preenchimento")
     for c in cx:
         caixa(ax[0], yolo_para_xyxy(c, w, h), lw=1.5); caixa(ax[1], yolo_para_xyxy(c, 640, 640), lw=1.5)
         b = yolo_para_xyxy(c, nw, nh); caixa(ax[2], b + [0, oy, 0, oy], lw=1.5)
@@ -1005,7 +1005,7 @@ def fig_erro_contagem():
     ax[0].plot([0, m], [0, m], "--", color="gray"); ax[0].set(xlabel="cachos anotados na foto", ylabel="cachos previstos", title=f"Contagem por foto: MAE = {mae:.1f}, viés = {vies:+.1f}")
     ax[1].hist(prev - reais, bins=range(-8, 9), color="#b8860b", edgecolor="white"); ax[1].set(xlabel="previstos − reais", ylabel="fotos", title="Distribuição do erro de contagem")
     for a in ax: a.grid(alpha=0.3)
-    fig.text(0.5, -0.03, f"{len(AMOSTRA)} fotos reais do WGISD; detector simulado (conf 0,4). É a métrica que o produtor entende.", ha="center", fontsize=10, color="gray")
+    fig.text(0.5, -0.03, f"{len(AMOSTRA)} imagens do WGISD; previsões simuladas (conf 0,4).", ha="center", fontsize=10, color="gray")
     salvar(fig, "erro_contagem")
 
 
@@ -1023,7 +1023,7 @@ def fig_dominio_cor():
         ax[1].hist(vs, bins=64, range=(0, 256), density=True, histtype="step", lw=2.2, color=cor, label=nome)
     ax[0].set(title="Matiz (H) dentro das caixas dos cachos", xlabel="H (OpenCV, 0 a 180)", xlim=(0, 180)); ax[0].legend()
     ax[1].set(title="Brilho (V) dentro das caixas", xlabel="V"); ax[1].legend()
-    fig.text(0.5, -0.03, "Pixels reais das caixas anotadas do WGISD. Variedades brancas e tintas ocupam regiões diferentes: é a mudança de domínio medida.", ha="center", fontsize=10, color="gray")
+    fig.text(0.5, -0.03, "Pixels no interior das caixas anotadas do WGISD (amostra de seis imagens por variedade).", ha="center", fontsize=10, color="gray")
     salvar(fig, "dominio_cor")
 
 
@@ -1034,7 +1034,7 @@ def fig_iluminacao():
     fig, ax = plt.subplots(2, 3, figsize=(17, 7.6))
     for a, (t, im) in zip(ax.flat, variantes): a.imshow(im); a.set_title(t)
     limpar(ax)
-    fig.suptitle("A mesma fileira em condições que o treino talvez não tenha visto. Teste o modelo em cada uma antes de levar para o campo.", y=1.0)
+    fig.suptitle("Perturbações sintéticas de iluminação, cor, ruído e nitidez", y=1.0)
     salvar(fig, "iluminacao")
 
 

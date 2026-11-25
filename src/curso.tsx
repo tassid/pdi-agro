@@ -42,6 +42,8 @@ export type Aula = {
   artigos: Artigo[]
   notebook: { nome: string; arquivo: string; descricao: string }
   entregas: React.ReactNode[]
+  limitacoes: React.ReactNode[]
+  referencias: string[]
 }
 
 export const fig = (n: string) => `./fig/${n}.jpg`
@@ -60,9 +62,9 @@ export function Fig({ n, cap, w }: { n: string; cap: React.ReactNode; w?: number
 }
 
 const ETAPA = {
-  teoria: { n: 1, t: 'Teoria', icon: <BookOpen size={16} /> },
-  exemplo: { n: 2, t: 'Exemplo', icon: <Lightbulb size={16} /> },
-  pratica: { n: 3, t: 'Prática', icon: <FlaskConical size={16} /> },
+  teoria: { n: 1, t: 'Fundamentação teórica', icon: <BookOpen size={16} /> },
+  exemplo: { n: 2, t: 'Exemplo aplicado', icon: <Lightbulb size={16} /> },
+  pratica: { n: 3, t: 'Atividade prática', icon: <FlaskConical size={16} /> },
 }
 
 function Etapa({ k, children }: { k: keyof typeof ETAPA; children: React.ReactNode }) {
@@ -144,7 +146,7 @@ export function buildDeck(aula: Aula): { slides: DeckSlide[]; inicio: Record<str
     ),
   })
   slides.push({
-    titulo: 'Ao final desta aula, você consegue',
+    titulo: 'Objetivos de aprendizagem',
     body: (
       <div className="slide-list">
         <ol>
@@ -161,17 +163,17 @@ export function buildDeck(aula: Aula): { slides: DeckSlide[]; inicio: Record<str
       titulo: `Bloco ${b.cod}`,
       body: (
         <div className="sl-divisor">
-          <p className="slide-eyebrow">{b.min} min · teoria → exemplo → prática</p>
+          <p className="slide-eyebrow">{b.min} min · fundamentação → exemplo → prática</p>
           <p className="slide-bigidea">{b.titulo}</p>
         </div>
       ),
     })
     b.slides.forEach((s) => slides.push({ titulo: s.titulo, sub: `${b.cod} · ${b.titulo}`, body: <SlideBody s={s} /> }))
     if (b.id === aula.intervaloDepois)
-      slides.push({ titulo: 'Intervalo · 20 min', body: <div className="sl-divisor"><p className="slide-bigidea">Café, água e conferir o Colab de quem ficou para trás.</p></div> })
+      slides.push({ titulo: 'Intervalo · 20 min', body: <div className="sl-divisor"><p className="slide-bigidea">Intervalo. O treinamento iniciado no bloco anterior continua em execução.</p></div> })
   })
   slides.push({
-    titulo: 'Artigos da aula',
+    titulo: 'Leituras recomendadas',
     body: (
       <div className="slide-list">
         <ol>
@@ -299,7 +301,7 @@ function Roteiro({ aula }: { aula: Aula }) {
 export function AulaPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?: Aula }) {
   const [deck, setDeck] = useState<number | null>(null)
   const { inicio } = buildDeck(aula)
-  const ids = [...aula.blocos.map((b) => b.id), 'artigos', 'quiz', 'entregas']
+  const ids = [...aula.blocos.map((b) => b.id), 'artigos', 'quiz', 'entregas', 'limitacoes', 'referencias']
   const [on, setOn] = useState(ids[0])
   useEffect(() => {
     const obs = new IntersectionObserver(
@@ -331,7 +333,7 @@ export function AulaPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?:
         <Roteiro aula={aula} />
         <div className="head-cols">
           <div>
-            <div className="eyebrow" style={{ marginBottom: 6 }}>ao final, a turma consegue</div>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>objetivos de aprendizagem: ao final da aula, o estudante deverá ser capaz de</div>
             <ol className="objs">{aula.objetivos.map((o) => <li key={o}>{o}</li>)}</ol>
           </div>
           <a className="nb-card" href={nb} target="_blank" rel="noreferrer">
@@ -351,7 +353,7 @@ export function AulaPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?:
                 </a>
               </li>
             ))}
-            {[['artigos', 'Artigos da aula'], ['quiz', 'Quiz de saída'], ['entregas', 'Para o trabalho']].map(([id, t]) => (
+            {[['artigos', 'Leituras recomendadas'], ['quiz', 'Avaliação formativa'], ['entregas', 'Atividade avaliativa'], ['limitacoes', 'Pressupostos e limitações'], ['referencias', 'Referências']].map(([id, t]) => (
               <li key={id}><a href={`#${id}`} onClick={go(id)} className={on === id ? 'on' : ''}><span className="n">·</span><span>{t}</span></a></li>
             ))}
           </ol>
@@ -373,11 +375,11 @@ export function AulaPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?:
                   {b.exercicios && <Exercicios itens={b.exercicios} />}
                 </Etapa>
               </section>
-              {b.id === aula.intervaloDepois && <div className="intervalo">☕ Intervalo de 20 minutos</div>}
+              {b.id === aula.intervaloDepois && <div className="intervalo">Intervalo de 20 minutos</div>}
             </React.Fragment>
           ))}
           <section className="sec" id="artigos">
-            <div className="sec-head"><span className="n">·</span><h2>Artigos da aula</h2></div>
+            <div className="sec-head"><span className="n">·</span><h2>Leituras recomendadas</h2></div>
             <div className="artigos">
               {aula.artigos.map((a) => (
                 <article key={a.ref} className="artigo">
@@ -396,12 +398,20 @@ export function AulaPage({ aula, prev, next }: { aula: Aula; prev?: Aula; next?:
             </div>
           </section>
           <section className="sec" id="quiz">
-            <div className="sec-head"><span className="n">·</span><h2>Quiz de saída</h2><span className="min">{aula.quiz.length} perguntas</span></div>
+            <div className="sec-head"><span className="n">·</span><h2>Avaliação formativa</h2><span className="min">{aula.quiz.length} perguntas</span></div>
             <Quiz qs={aula.quiz} />
           </section>
           <section className="sec" id="entregas">
-            <div className="sec-head"><span className="n">·</span><h2>Para o trabalho em dupla</h2></div>
+            <div className="sec-head"><span className="n">·</span><h2>Atividade avaliativa (em dupla)</h2></div>
             <ol className="desafios">{aula.entregas.map((d, i) => <li key={i}><div>{d}</div></li>)}</ol>
+          </section>
+          <section className="sec" id="limitacoes">
+            <div className="sec-head"><span className="n">·</span><h2>Pressupostos e limitações deste material</h2></div>
+            <ol className="desafios">{aula.limitacoes.map((d, i) => <li key={i}><div>{d}</div></li>)}</ol>
+          </section>
+          <section className="sec" id="referencias">
+            <div className="sec-head"><span className="n">·</span><h2>Referências</h2></div>
+            <ul className="refs">{[...aula.referencias].sort((a, b) => a.localeCompare(b, 'pt')).map((r) => <li key={r}>{r}</li>)}</ul>
           </section>
           <nav className="pager" aria-label="Outras aulas">
             {prev ? <a href={`#${prev.id}`}><small><ArrowLeft size={12} /> Aula {prev.n}</small>{prev.titulo}</a> : <a href="#inicio"><small><ArrowLeft size={12} /> Início</small>Visão geral</a>}
