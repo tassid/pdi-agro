@@ -162,10 +162,10 @@ export function Lab(p: { n: string; title: string; desc?: React.ReactNode; child
 }
 
 const CALLOUT = {
-  analogia: { t: 'Analogia pra guardar', icon: <Lightbulb size={16} /> },
-  campo: { t: 'Na lavoura', icon: <Sprout size={16} /> },
-  pegadinha: { t: 'Pegadinha clássica', icon: <TriangleAlert size={16} /> },
-  prof: { t: 'Nota pra quem dá a aula', icon: <Presentation size={16} /> },
+  analogia: { t: 'Interpretação', icon: <Lightbulb size={16} /> },
+  campo: { t: 'Aplicação agrícola', icon: <Sprout size={16} /> },
+  pegadinha: { t: 'Observação metodológica', icon: <TriangleAlert size={16} /> },
+  prof: { t: 'Nota de ensino', icon: <Presentation size={16} /> },
 }
 
 export function Callout(p: { kind: keyof typeof CALLOUT; title?: string; children: React.ReactNode }) {
@@ -435,9 +435,9 @@ export function Caso(p: {
   discutir?: React.ReactNode[]
 }) {
   return (
-    <article className="caso" aria-label={`Caso real: ${p.titulo}`}>
+    <article className="caso" aria-label={`Estudo de caso: ${p.titulo}`}>
       <header className="caso-head">
-        <span className="caso-tag">caso real · {p.tipo}</span>
+        <span className="caso-tag">estudo de caso · {p.tipo}</span>
         <h3>{p.titulo}</h3>
         <p className="caso-ref">
           {p.autores} · {p.onde}
@@ -454,7 +454,7 @@ export function Caso(p: {
       <div className="caso-body">
         <div className="caso-col">
           <div className="prose">{p.resumo}</div>
-          <div className="caso-sub">o que o trabalho fez</div>
+          <div className="caso-sub">delineamento metodológico</div>
           <ol className="caso-pipe">
             {p.pipeline.map((s, i) => (
               <li key={i}>{s}</li>
@@ -462,7 +462,7 @@ export function Caso(p: {
           </ol>
         </div>
         <div className="caso-col">
-          <div className="caso-sub">números do trabalho</div>
+          <div className="caso-sub">resultados reportados pelos autores</div>
           <div className="caso-nums">
             {p.numeros.map((n) => (
               <div key={n.l} className="stat">
@@ -473,7 +473,7 @@ export function Caso(p: {
           </div>
           {p.discutir && (
             <>
-              <div className="caso-sub">pra discutir em sala</div>
+              <div className="caso-sub">questões para análise crítica</div>
               <ol className="caso-q">
                 {p.discutir.map((q, i) => (
                   <li key={i}>{q}</li>
